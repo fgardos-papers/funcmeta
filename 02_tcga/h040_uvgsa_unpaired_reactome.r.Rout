@@ -1,0 +1,484 @@
+
+R version 3.2.4 Revised (2016-03-16 r70336) -- "Very Secure Dishes"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##g040_uvgsa_unpaired.r
+> ##2016-03-23 fgarcia@cipf.es, dmontaner@cipf.es
+> ##Analysis of the miRNA data from The Cancer Genome Atlas
+> ##This script performs the GSA analysis of the transferred miRNA
+> 
+> date ()
+[1] "Thu Mar 24 09:57:53 2016"
+> Sys.info ()[c("nodename", "user")]
+        nodename             user 
+"fgarcia-laptop"        "fgarcia" 
+> commandArgs ()
+[1] "/usr/lib/R/bin/exec/R"          "-f"                            
+[3] "h040_uvgsa_unpaired_reactome.r" "--restore"                     
+[5] "--save"                         "--no-readline"                 
+> rm (list = ls ())
+> R.version.string ##"R version 3.2.1 (2015-06-18)"
+[1] "R version 3.2.4 Revised (2016-03-16 r70336)"
+> library (mdgsa); packageDescription ("mdgsa", fields = "Version") #"1.2.0"
+Loading required package: DBI
+
+
+KEGG.db contains mappings based on older data because the original
+  resource was removed from the the public domain before the most
+  recent update was produced. This package should now be considered
+  deprecated and future versions of Bioconductor may not have it
+  available.  Users who want more current data are encouraged to look
+  at the KEGGREST or reactome.db packages
+
+[1] "1.2.0"
+> 
+> try (source (".job.r")); try (.job)
+
+.job.r has been sourced
+
+$name
+[1] "tcga"
+
+$dir
+$dir$data
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data"
+
+$dir$code
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga"
+
+$dir$scripts
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/scripts"
+
+$dir$docs
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/documents"
+
+$dir$rawdat
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_raw"
+
+$dir$annotation
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_annotation"
+
+$dir$proces
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_processed"
+
+$dir$plots
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/results/plots"
+
+$dir$res
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/results/files"
+
+
+$testmode
+[1] FALSE
+
+$dec
+[1] "."
+
+$idsep
+[1] " /// "
+
+> 
+> setwd (file.path (.job$dir$proces))
+> 
+> ## ANNOTATION
+> load (file.path (.job$dir$proces, "reactome", "annot_reactome_for_unpaired_data.RData"))
+> ls ()
+[1] "annot"
+> 
+> ## INDEX
+> load (file.path (.job$dir$proces, "rindex_unpaired.RData"))
+> ls ()
+[1] "annot"  "rindex"
+> 
+> tags <- names (rindex)
+> TAGS <- toupper (tags)
+> names (TAGS) <- tags
+> tags
+ [1] "blca" "brca" "cesc" "coad" "esca" "hnsc" "kich" "kirc" "kirp" "lihc"
+[11] "luad" "lusc" "paad" "pcpg" "prad" "read" "skcm" "stad" "thca" "ucec"
+> TAGS
+  blca   brca   cesc   coad   esca   hnsc   kich   kirc   kirp   lihc   luad 
+"BLCA" "BRCA" "CESC" "COAD" "ESCA" "HNSC" "KICH" "KIRC" "KIRP" "LIHC" "LUAD" 
+  lusc   paad   pcpg   prad   read   skcm   stad   thca   ucec 
+"LUSC" "PAAD" "PCPG" "PRAD" "READ" "SKCM" "STAD" "THCA" "UCEC" 
+> 
+> ################################################################################
+> 
+> length (tags)
+[1] 20
+> 
+> ## tags <- tags[1:3]    ## 1
+> ## tags <- tags[4:6]    ## 2
+> ## tags <- tags[7:9]    ## 3
+> ## tags <- tags[10:12]  ## 4
+> ## tags <- tags[13:15]  ## 5
+> ## tags <- tags[16:17]  ## 6
+> 
+> ################################################################################
+> 
+> ## Comprobacion de las longitudes de de annot
+> longitudes <- as.numeric(lapply(annot, length))
+> summary(longitudes)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   1.00    4.00   12.00   34.17   31.00 1423.00 
+> hist(longitudes)
+> table(longitudes ==1)
+
+FALSE  TRUE 
+ 1552   196 
+> table(longitudes > 300)
+
+FALSE  TRUE 
+ 1728    20 
+> 
+> 
+> ## GSA
+> 
+> setwd (file.path (.job$dir$proces, "reactome"))
+> 
+> dir.create("res_uvgsa_unpaired", showWarnings = TRUE, recursive = FALSE, mode = "0777")
+Warning message:
+In dir.create("res_uvgsa_unpaired", showWarnings = TRUE, recursive = FALSE,  :
+  'res_uvgsa_unpaired' already exists
+> 
+> setwd (file.path (.job$dir$proces, "reactome",  "res_uvgsa_unpaired"))
+> 
+> for (tag in tags) {
++   
++   anotacion <- annotFilter (annot, index = rindex[[tag]], minBlockSize = 0,
++                             maxBlockSize = 300)
++   
++   res <- try (uvGsa (rindex[[tag]], anotacion, fulltable = TRUE))
++   
++   fichero <- paste (tag,".RData", sep = "")
++   save (list = "res", file = fichero)
++ }
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+263.652   0.213 421.003 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+265.856   0.232 427.358 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+265.085   0.317 443.462 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+266.159   0.253 431.345 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+265.663   0.277 434.291 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+266.084   0.192 423.681 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+256.870   0.065 259.282 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+254.242   0.130 266.667 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+253.981   0.114 267.746 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+255.065   0.264 276.851 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+252.084   0.198 270.569 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+255.142   0.378 278.409 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+253.322   0.228 278.391 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+253.705   0.147 278.925 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+252.980   0.139 264.217 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+257.405   0.214 272.389 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+253.984   0.061 265.444 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+255.911   0.240 272.949 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+251.460   0.163 320.086 
+42.72% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   0 small blocks removed.
+   20 big blocks removed.
+   1728 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, time in seconds:
+   user  system elapsed 
+258.382   0.164 400.891 
+There were 20 warnings (use warnings() to see them)
+> 
+> ###EXIT
+> warnings ()
+Warning messages:
+1: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+2: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+3: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+4: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+5: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+6: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+7: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+8: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+9: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+10: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+11: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+12: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+13: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+14: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+15: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+16: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+17: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+18: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+19: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+20: In annot.size.filter(annot = annot, minBlockSize = minBlockSize,  ... :
+  minBlockSize < 1;
+Generally it is not meaningful to allow for empty blocks
+> sessionInfo ()
+R version 3.2.4 Revised (2016-03-16 r70336)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 14.04.4 LTS
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=es_ES.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=es_ES.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=es_ES.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=es_ES.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] mdgsa_1.2.0   RSQLite_1.0.0 DBI_0.3.1    
+
+loaded via a namespace (and not attached):
+ [1] Matrix_1.2-4         IRanges_2.4.7        parallel_3.2.4      
+ [4] Biobase_2.30.0       AnnotationDbi_1.32.3 KEGG.db_3.2.2       
+ [7] grid_3.2.4           S4Vectors_0.8.11     BiocGenerics_0.16.1 
+[10] stats4_3.2.4         cluster_2.0.3        GO.db_3.2.2         
+[13] lattice_0.20-33     
+> q ("no")
+> proc.time()
+    user   system  elapsed 
+5165.197    4.170 6566.339 

@@ -1,0 +1,1086 @@
+
+R version 3.3.0 (2016-05-03) -- "Supposedly Educational"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##g050_meta_analysis_paired.r
+> ##2016-01-04 fgarcia@cipf.es, antoi@alumni.uv.es
+> ##Functional Meta-Analysis of transcriptomic studies
+> ##Annotation: KEGG 
+> 
+> 
+> 
+> # STEP 1. Preparing input for meta-analysis: LOR and SD matrix
+> #################################################################
+> ## starting
+> date ()
+[1] "Sun May 15 08:41:18 2016"
+> Sys.info ()[c("nodename", "user")]
+        nodename             user 
+"fgarcia-laptop"        "fgarcia" 
+> commandArgs ()
+[1] "/usr/lib/R/bin/exec/R"                
+[2] "-f"                                   
+[3] "g050_meta_analysis_paired_reactome2.r"
+[4] "--restore"                            
+[5] "--save"                               
+[6] "--no-readline"                        
+> R.version.string 
+[1] "R version 3.3.0 (2016-05-03)"
+> try (source (".job.r")); try (.job)
+
+.job.r has been sourced
+
+$name
+[1] "tcga"
+
+$dir
+$dir$data
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data"
+
+$dir$code
+[1] "~/Desktop/phd/02_meta_analysis/tcga"
+
+$dir$scripts
+[1] "~/Desktop/phd/02_meta_analysis/tcga/scripts"
+
+$dir$docs
+[1] "~/Desktop/phd/02_meta_analysis/tcga/documents"
+
+$dir$rawdat
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data/data_raw"
+
+$dir$annotation
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data/data_annotation"
+
+$dir$proces
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data/data_processed"
+
+$dir$plots
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data/results/plots"
+
+$dir$res
+[1] "~/Desktop/phd/02_meta_analysis/tcga/data/results/files"
+
+
+$testmode
+[1] FALSE
+
+$dec
+[1] "."
+
+$idsep
+[1] " /// "
+
+> 
+> # clean the working space
+> rm (list = ls ())
+> 
+> 
+> ### load libraries
+> # We need to install and load these packages:
+> library(Biobase); packageDescription("Biobase", fields = "Version")
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, as.vector, cbind, colnames,
+    do.call, duplicated, eval, evalq, Filter, Find, get, grep, grepl,
+    intersect, is.unsorted, lapply, lengths, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unlist, unsplit
+
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+[1] "2.30.0"
+> library(metafor); packageDescription("metafor", fields = "Version")
+Loading required package: Matrix
+Loading 'metafor' package (version 1.9-8). For an overview 
+and introduction to the package please type: help(metafor).
+[1] "1.9-8"
+> library(mdgsa); packageDescription("mdgsa", fields = "Version")
+Loading required package: DBI
+
+
+KEGG.db contains mappings based on older data because the original
+  resource was removed from the the public domain before the most
+  recent update was produced. This package should now be considered
+  deprecated and future versions of Bioconductor may not have it
+  available.  Users who want more current data are encouraged to look
+  at the KEGGREST or reactome.db packages
+
+[1] "1.2.0"
+> #library(RamiGO); packageDescription("RamiGO", fields = "Version")
+> library(ggplot2); packageDescription("ggplot2", fields = "Version")
+[1] "2.1.0"
+> library(reshape); packageDescription("reshape", fields = "Version")
+
+Attaching package: ‘reshape’
+
+The following object is masked from ‘package:Matrix’:
+
+    expand
+
+[1] "0.8.5"
+> 
+> 
+> ### previously for each study, we need results GSA from mdgsa in a file .RData including this structure (dataframe): 
+> ####            N        lor        pval      padj        sd          t conv
+> #### GO:0000002 12  0.4373106 0.128203007 1.0000000 0.2874434  1.5213797    1
+> #### GO:0000018 29  0.2177107 0.238623945 1.0000000 0.1847325  1.1785188    1
+> 
+> 
+> 
+> ### load results from gene set analysis for each study
+> setwd (file.path (.job$dir$proces, "reactome",  "res_uvgsa_paired"))
+> ficheros <- dir(pattern= ".RData")
+> ficheros
+ [1] "blca.RData" "brca.RData" "cesc.RData" "esca.RData" "hnsc.RData"
+ [6] "kich.RData" "kirc.RData" "kirp.RData" "lihc.RData" "luad.RData"
+[11] "lusc.RData" "paad.RData" "pcpg.RData" "prad.RData" "stad.RData"
+[16] "thca.RData" "ucec.RData"
+> 
+> # we search a list including all unique reactome IDs for all studies
+> reactomeuniq<-NULL
+> for (fi in ficheros){
++   load (fi)
++   reactomeuniq <- c(reactomeuniq, rownames (res))
++ }
+> length (reactomeuniq)
+[1] 29376
+> reactomeuniq <- unique (reactomeuniq)
+> length (reactomeuniq)
+[1] 1728
+> reactomeuniq <- sort (reactomeuniq)
+> 
+> 
+> ### generating matrix with all LOR for all studies
+> mat.lor <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.lor) <- reactomeuniq
+> colnames (mat.lor) <- strsplit (ficheros, ".RData")
+> head (mat.lor[, 1:5])
+              blca brca cesc esca hnsc
+R-HSA-1059683   NA   NA   NA   NA   NA
+R-HSA-109581    NA   NA   NA   NA   NA
+R-HSA-109606    NA   NA   NA   NA   NA
+R-HSA-109688    NA   NA   NA   NA   NA
+R-HSA-109703    NA   NA   NA   NA   NA
+R-HSA-109704    NA   NA   NA   NA   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   lor <- res$lor
++   names (lor) <- (rownames (res))
++   mat.lor[, co] <- lor[rownames(mat.lor)] 
++ }
+> 
+> head (mat.lor[, 1:5])
+                     blca        brca        cesc         esca        hnsc
+R-HSA-1059683 -0.44960003 -0.02910627  0.35340302 -0.281305849 -0.36268924
+R-HSA-109581  -0.13438389 -0.16458578 -0.08700263 -0.003660705 -0.11272893
+R-HSA-109606  -0.13593656 -0.03851804  0.07265381 -0.076173869 -0.38973042
+R-HSA-109688  -0.05035929 -0.28192834 -0.19962986 -0.164739120  0.07497681
+R-HSA-109703   0.13643728  0.14068920  0.11273402  0.253027695  0.02374663
+R-HSA-109704   0.11172901  0.12889775  0.31165128  0.152758482 -0.07650889
+> table (is.na(mat.lor))
+
+FALSE 
+29376 
+> dim (mat.lor)
+[1] 1728   17
+> summary(mat.lor)
+      blca               brca               cesc                esca         
+ Min.   :-2.93747   Min.   :-2.13344   Min.   :-1.948382   Min.   :-3.60593  
+ 1st Qu.:-0.20752   1st Qu.:-0.22260   1st Qu.:-0.209458   1st Qu.:-0.17285  
+ Median :-0.02223   Median :-0.04044   Median :-0.008597   Median : 0.01090  
+ Mean   :-0.02778   Mean   :-0.02907   Mean   :-0.009939   Mean   : 0.00613  
+ 3rd Qu.: 0.15303   3rd Qu.: 0.15462   3rd Qu.: 0.207912   3rd Qu.: 0.19110  
+ Max.   : 2.56304   Max.   : 2.51763   Max.   : 2.737686   Max.   : 2.99165  
+      hnsc               kich                kirc                kirp         
+ Min.   :-3.29086   Min.   :-2.632097   Min.   :-2.231178   Min.   :-2.97745  
+ 1st Qu.:-0.19012   1st Qu.:-0.228470   1st Qu.:-0.199563   1st Qu.:-0.23779  
+ Median : 0.01702   Median : 0.022571   Median :-0.007667   Median :-0.04024  
+ Mean   : 0.01038   Mean   :-0.004579   Mean   : 0.012625   Mean   :-0.02898  
+ 3rd Qu.: 0.23439   3rd Qu.: 0.254436   3rd Qu.: 0.205848   3rd Qu.: 0.20133  
+ Max.   : 2.47651   Max.   : 2.446994   Max.   : 3.290862   Max.   : 3.90358  
+      lihc               luad                lusc                paad         
+ Min.   :-2.26255   Min.   :-2.299142   Min.   :-2.878136   Min.   :-2.49431  
+ 1st Qu.:-0.18797   1st Qu.:-0.224896   1st Qu.:-0.217746   1st Qu.:-0.18633  
+ Median :-0.02812   Median :-0.002015   Median : 0.020638   Median :-0.01615  
+ Mean   :-0.01251   Mean   :-0.009023   Mean   : 0.009602   Mean   :-0.00565  
+ 3rd Qu.: 0.17221   3rd Qu.: 0.216065   3rd Qu.: 0.234402   3rd Qu.: 0.16210  
+ Max.   : 3.42219   Max.   : 2.977454   Max.   : 3.053623   Max.   : 2.99165  
+      pcpg                prad                stad               thca         
+ Min.   :-2.365292   Min.   :-2.323214   Min.   :-3.38566   Min.   :-3.02153  
+ 1st Qu.:-0.197598   1st Qu.:-0.191021   1st Qu.:-0.19841   1st Qu.:-0.20238  
+ Median : 0.021743   Median : 0.004603   Median : 0.01528   Median :-0.03036  
+ Mean   :-0.005109   Mean   :-0.006415   Mean   : 0.00648   Mean   :-0.01527  
+ 3rd Qu.: 0.199586   3rd Qu.: 0.215191   3rd Qu.: 0.22647   3rd Qu.: 0.16988  
+ Max.   : 3.505199   Max.   : 2.365292   Max.   : 3.07061   Max.   : 2.12935  
+      ucec         
+ Min.   :-2.36191  
+ 1st Qu.:-0.22756  
+ Median :-0.01759  
+ Mean   :-0.01592  
+ 3rd Qu.: 0.19226  
+ Max.   : 4.01522  
+> 
+> 
+> ### generating matrix with all SD for all studies
+> mat.sd <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.sd) <- reactomeuniq
+> colnames (mat.sd) <- strsplit (ficheros, ".RData")
+> head (mat.sd[, 1:5])
+              blca brca cesc esca hnsc
+R-HSA-1059683   NA   NA   NA   NA   NA
+R-HSA-109581    NA   NA   NA   NA   NA
+R-HSA-109606    NA   NA   NA   NA   NA
+R-HSA-109688    NA   NA   NA   NA   NA
+R-HSA-109703    NA   NA   NA   NA   NA
+R-HSA-109704    NA   NA   NA   NA   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   sd <- res$sd
++   names (sd) <- (rownames (res))
++   head (sd)
++   mat.sd[, co] <- sd[rownames(mat.sd)] 
++ }
+> 
+> head (mat.sd)
+                    blca       brca       cesc       esca       hnsc       kich
+R-HSA-1059683 0.32685357 0.31646778 0.32259678 0.31637792 0.32167491 0.32174442
+R-HSA-109581  0.09763415 0.09764562 0.09760697 0.09757081 0.09755967 0.09756386
+R-HSA-109606  0.18040778 0.17989975 0.18005017 0.17998188 0.18253701 0.18113034
+R-HSA-109688  0.16928434 0.16961069 0.16908778 0.16892788 0.16927601 0.16934391
+R-HSA-109703  0.17437811 0.17467914 0.17471396 0.17405770 0.17434097 0.17453861
+R-HSA-109704  0.13396395 0.13413688 0.13540615 0.13394701 0.13399080 0.13396477
+                    kirc       kirp       lihc       luad       lusc       paad
+R-HSA-1059683 0.31859740 0.44860111 0.31600937 0.36993337 0.31509257 0.32018678
+R-HSA-109581  0.09757085 0.09756233 0.09757079 0.09757758 0.09756309 0.09757905
+R-HSA-109606  0.18105516 0.18037935 0.17986212 0.18029965 0.18228672 0.18005274
+R-HSA-109688  0.16926933 0.16929942 0.16929389 0.16934762 0.16919330 0.16922572
+R-HSA-109703  0.17442834 0.17545280 0.17731835 0.17435054 0.17432981 0.17435962
+R-HSA-109704  0.13396720 0.13499485 0.13543568 0.13422586 0.13399193 0.13402103
+                    pcpg       prad       stad       thca       ucec
+R-HSA-1059683 0.33324641 0.31716081 0.31921248 0.31754583 0.31730134
+R-HSA-109581  0.09757092 0.09757246 0.09755793 0.09768973 0.09761453
+R-HSA-109606  0.18051362 0.18060398 0.18172643 0.18557720 0.18205032
+R-HSA-109688  0.16928079 0.16896541 0.16854395 0.16930102 0.16923071
+R-HSA-109703  0.17488175 0.17530290 0.17433320 0.17454461 0.17436454
+R-HSA-109704  0.13455871 0.13591166 0.13396716 0.13396372 0.13405850
+> table (is.na(mat.sd))
+
+FALSE 
+29376 
+> dim (mat.sd)
+[1] 1728   17
+> summary(mat.sd)
+      blca              brca              cesc              esca        
+ Min.   :0.05896   Min.   :0.05895   Min.   :0.05896   Min.   :0.05896  
+ 1st Qu.:0.18282   1st Qu.:0.18325   1st Qu.:0.18289   1st Qu.:0.18281  
+ Median :0.29775   Median :0.29637   Median :0.29727   Median :0.29508  
+ Mean   :0.36387   Mean   :0.36308   Mean   :0.36274   Mean   :0.36288  
+ 3rd Qu.:0.48220   3rd Qu.:0.49012   3rd Qu.:0.48092   3rd Qu.:0.47489  
+ Max.   :1.16201   Max.   :1.09062   Max.   :1.00018   Max.   :1.00017  
+      hnsc              kich              kirc              kirp        
+ Min.   :0.05896   Min.   :0.05895   Min.   :0.05896   Min.   :0.05895  
+ 1st Qu.:0.18283   1st Qu.:0.18305   1st Qu.:0.18283   1st Qu.:0.18285  
+ Median :0.29503   Median :0.29484   Median :0.29709   Median :0.29738  
+ Mean   :0.36199   Mean   :0.36143   Mean   :0.36392   Mean   :0.36360  
+ 3rd Qu.:0.48772   3rd Qu.:0.48521   3rd Qu.:0.48678   3rd Qu.:0.48658  
+ Max.   :1.04486   Max.   :1.00018   Max.   :1.08226   Max.   :1.00018  
+      lihc              luad              lusc              paad        
+ Min.   :0.05895   Min.   :0.05896   Min.   :0.05898   Min.   :0.05896  
+ 1st Qu.:0.18292   1st Qu.:0.18282   1st Qu.:0.18286   1st Qu.:0.18282  
+ Median :0.29974   Median :0.29253   Median :0.29167   Median :0.29414  
+ Mean   :0.36378   Mean   :0.36164   Mean   :0.36142   Mean   :0.36110  
+ 3rd Qu.:0.48984   3rd Qu.:0.47669   3rd Qu.:0.47661   3rd Qu.:0.48240  
+ Max.   :1.00018   Max.   :1.00018   Max.   :1.00017   Max.   :1.00018  
+      pcpg              prad              stad              thca        
+ Min.   :0.05895   Min.   :0.05896   Min.   :0.05898   Min.   :0.05895  
+ 1st Qu.:0.18295   1st Qu.:0.18298   1st Qu.:0.18277   1st Qu.:0.18286  
+ Median :0.29685   Median :0.29571   Median :0.29629   Median :0.29914  
+ Mean   :0.36041   Mean   :0.36597   Mean   :0.36342   Mean   :0.36415  
+ 3rd Qu.:0.48394   3rd Qu.:0.48660   3rd Qu.:0.48236   3rd Qu.:0.48563  
+ Max.   :1.00016   Max.   :1.04704   Max.   :1.48537   Max.   :1.02388  
+      ucec        
+ Min.   :0.05896  
+ 1st Qu.:0.18286  
+ Median :0.29740  
+ Mean   :0.36582  
+ 3rd Qu.:0.48937  
+ Max.   :1.75273  
+> 
+> 
+> ### generating matrix with all adjusted p values for all studies
+> mat.adjp <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.adjp) <- reactomeuniq
+> colnames (mat.adjp) <- strsplit (ficheros, ".RData")
+> head (mat.adjp[, 1:5])
+              blca brca cesc esca hnsc
+R-HSA-1059683   NA   NA   NA   NA   NA
+R-HSA-109581    NA   NA   NA   NA   NA
+R-HSA-109606    NA   NA   NA   NA   NA
+R-HSA-109688    NA   NA   NA   NA   NA
+R-HSA-109703    NA   NA   NA   NA   NA
+R-HSA-109704    NA   NA   NA   NA   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   adjp <- res$padj
++   names (adjp) <- (rownames (res))
++   head (adjp)
++   mat.adjp[, co] <- adjp[rownames(mat.adjp)] 
++ }
+> 
+> head (mat.adjp)
+              blca brca cesc esca hnsc kich kirc kirp lihc luad lusc paad pcpg
+R-HSA-1059683    1    1    1    1    1    1    1    1    1    1    1    1    1
+R-HSA-109581     1    1    1    1    1    1    1    1    1    1    1    1    1
+R-HSA-109606     1    1    1    1    1    1    1    1    1    1    1    1    1
+R-HSA-109688     1    1    1    1    1    1    1    1    1    1    1    1    1
+R-HSA-109703     1    1    1    1    1    1    1    1    1    1    1    1    1
+R-HSA-109704     1    1    1    1    1    1    1    1    1    1    1    1    1
+              prad stad thca ucec
+R-HSA-1059683    1    1    1    1
+R-HSA-109581     1    1    1    1
+R-HSA-109606     1    1    1    1
+R-HSA-109688     1    1    1    1
+R-HSA-109703     1    1    1    1
+R-HSA-109704     1    1    1    1
+> table (is.na(mat.adjp))
+
+FALSE 
+29376 
+> dim (mat.adjp)
+[1] 1728   17
+> table(mat.adjp < 0.05)
+
+FALSE  TRUE 
+29104   272 
+> 
+> mat.adj2 <- (mat.adjp < 0.05)
+> head(mat.adj2)
+               blca  brca  cesc  esca  hnsc  kich  kirc  kirp  lihc  luad  lusc
+R-HSA-1059683 FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109581  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109606  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109688  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109703  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109704  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+               paad  pcpg  prad  stad  thca  ucec
+R-HSA-1059683 FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109581  FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109606  FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109688  FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109703  FALSE FALSE FALSE FALSE FALSE FALSE
+R-HSA-109704  FALSE FALSE FALSE FALSE FALSE FALSE
+> total <- apply(mat.adj2, 1, sum)
+> head(total)
+R-HSA-1059683  R-HSA-109581  R-HSA-109606  R-HSA-109688  R-HSA-109703 
+            0             0             0             0             0 
+ R-HSA-109704 
+            0 
+> summary(total)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.0000  0.0000  0.0000  0.1574  0.0000 11.0000 
+> table(total)
+total
+   0    1    2    3    4    5    6    7    8   11 
+1603   69   27    8    5    5    6    2    1    2 
+> 
+> 
+> 
+> 
+> 
+> 
+> # STEP 2. Meta-analysis for functional terms
+> #################################################################
+> 
+> #In general, we suppose between-study variance is non-zero.
+> #there are different methods to estimate this variance:
+> #DL (Dersimonian-Laird), REML (Restricted maximum-likelihood, default)....
+> #result.lor <- rma(yi = mat.lor[1, ], vi = mat.sd[1, ], method = "DL") 
+> # DerSimonian-Laird. Y -> log(OR) V -> var(log(OR)
+> 
+> #We also evaluate Fixed Effects (FE)
+> 
+> 
+> # explore the function to do the meta-analysis
+> #?rma
+> 
+> # parameters to select
+> # methods = c("DL", "HE", "HS", "SJ", "ML", "REML", "EB", "PM", "FE")  #methods for meta-analysis
+> methods = c("DL", "HE", "HS", "SJ",                "PM", "FE")  #methods for meta-analysis
+> 
+> corte = 0.05  #threshold to detect significant results
+> or    = 0.5   #threshold to detect OR 
+> adj.p.value = "fdr"  # method to adjust p-values
+> 
+> # preparing a matrix for results
+> res <- matrix (NA, nrow = length (methods), ncol = 6)
+> colnames(res) <- c("over", "under", "sig.over", "sig.under", "sig.or.over", "sig.or.under")
+> rownames(res) <- methods
+> res
+   over under sig.over sig.under sig.or.over sig.or.under
+DL   NA    NA       NA        NA          NA           NA
+HE   NA    NA       NA        NA          NA           NA
+HS   NA    NA       NA        NA          NA           NA
+SJ   NA    NA       NA        NA          NA           NA
+PM   NA    NA       NA        NA          NA           NA
+FE   NA    NA       NA        NA          NA           NA
+> # important: we have to indicate our variability measure is standard deviance and not variance
+> # from "sei" (by defalt is "vi"):
+> 
+> # meta-analysis
+> for (i in methods){
++   meta_analisis <- lapply(1:length(rownames(mat.lor)),
++                           function(x){yi = rma(mat.lor[x, ], sei =mat.sd[x, ],
++                                           method = i)})
++   # sometimes for   methods there are converge problems: I have to increase the number of iter
++   #(http://www.metafor-project.org/doku.php/tips:convergence_problems_rma)
++   #   length(meta_analisis)
++   #   meta_analisis[[1]]
++   names (meta_analisis) <- rownames(mat.lor)
++   result_meta <- as.data.frame(do.call("rbind", lapply(meta_analisis,function(x)
++     {c(x$ci.lb, x$b, x$ci.ub, x$pval, x$QE, x$QEp, x$se, x$tau2, x$I2, x$H2) })))
++   colnames(result_meta) <- c("lower_bound", "summary_LOR", "upper_bound", "pvalue", 
++                              "QE", "QEp", "SE", "tau2", "I2", "H2")
++   p.adjust <- p.adjust(result_meta[, 4], method= adj.p.value)  
++   result_meta <- round(cbind (result_meta, p.adjust),3)
++   
++   if (file.exists(file.path (.job$dir$code, "results",  "reactome", "paired","files"))){
++     setwd(file.path(.job$dir$code, "results",  "reactome", "paired","files"))
++   } else {
++     dir.create(file.path(.job$dir$code, "results",  "reactome", "paired","files"), recursive = T)
++     setwd(file.path(.job$dir$code, "results",  "reactome", "paired","files"))    
++   }
++   #save  (list = c("meta_analisis", "result_meta"), file = sprintf("meta_result_%s.RData", i))
++   
++   res[i, "over"]      <-  sum(result_meta[, "summary_LOR"] > 0)
++   res[i, "under"]    <-  sum(result_meta[, "summary_LOR"] < 0)
++   res[i,"sig.over"]   <-  sum(result_meta[, "summary_LOR"] > 0 & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.under"] <-  sum(result_meta[, "summary_LOR"] < 0 & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.or.over"]   <-  sum(result_meta[, "summary_LOR"] >  or & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.or.under"] <-  sum(result_meta[, "summary_LOR"] < -or & result_meta[,"p.adjust"] < corte)
++   
++ 
++   # Getting common IDs for all models 
++   if (i == "DL"){
++     DL <- result_meta    
++     DL[,"name"] <- getKEGGnames(substr(rownames(DL),4,8))
++     DL[, "ID"]   <- rownames(DL)
++     DL <- DL[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust", "QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(DL, "all.results.DL.txt", sep = "\t", quote = F, row.names = F)
++     DLs = subset(DL, DL[,"p.adjust"] < corte)
++     write.table(DLs, "sig.results.DL.txt", sep = "\t", quote = F, row.names = F)
++     idDL = rownames(DLs)
++   }
++   if (i == "HE"){
++     HE <- result_meta    
++     HE[,"name"] <- getKEGGnames(substr(rownames(HE),4,8))
++     HE[, "ID"]   <- rownames(HE)
++     HE <- HE[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(HE, "all.results.HE.txt", sep = "\t", quote = F, row.names = F)
++     HEs = subset(HE, HE[,"p.adjust"] < corte)
++     write.table(HEs, "sig.results.HE.txt", sep = "\t", quote = F, row.names = F)
++     idHE = rownames(HEs)
++   }
++   if (i == "HS"){
++     HS <- result_meta
++     HS[,"name"] <- getKEGGnames(substr(rownames(HS),4,8))
++     HS[, "ID"]   <- rownames(HS)
++     HS <- HS[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(HS, "all.results.HS.txt", sep = "\t", quote = F, row.names = F)
++     HSs = subset(HS, HS[,"p.adjust"] < corte)
++     write.table(HSs, "sig.results.HS.txt", sep = "\t", quote = F, row.names = F)
++     idHS = rownames(HSs)
++   }
++   if (i == "SJ"){
++     SJ <- result_meta
++     SJ[,"name"] <- getKEGGnames(substr(rownames(SJ),4,8))
++     SJ[, "ID"]   <- rownames(SJ)
++     SJ <- SJ[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(SJ, "all.results.SJ.txt", sep = "\t", quote = F, row.names = F)
++     SJs = subset(SJ, SJ[,"p.adjust"] < corte)
++     write.table(SJs, "sig.results.SJ.txt", sep = "\t", quote = F, row.names = F)
++     idSJ = rownames(SJs)
++   }
++ #   if (i == "ML"){
++ #     ML <- result_meta
++ #     ML[,"name"] <- getKEGGnames(substr(rownames(ML),4,8))
++ #     ML[, "ID"]   <- rownames(ML)
++ #     ML <- ML[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(ML, "all.results.ML.txt", sep = "\t", quote = F, row.names = F)
++ #     MLs = subset(ML, ML[,"p.adjust"] < corte)
++ #     write.table(MLs, "sig.results.ML.txt", sep = "\t", quote = F, row.names = F)
++ #     idML = rownames(MLs)
++ #   }
++ #   if (i == "REML"){
++ #     REML <- result_meta
++ #     REML[,"name"] <- getKEGGnames(substr(rownames(REML),4,8))
++ #     REML[, "ID"]   <- rownames(REML)
++ #     REML <- REML[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                    "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(REML, "all.results.REML.txt", sep = "\t", quote = F, row.names = F)
++ #     REMLs = subset(REML, REML[,"p.adjust"] < corte)
++ #     write.table(REMLs, "sig.results.REML.txt", sep = "\t", quote = F, row.names = F)
++ #     idREML = rownames(REMLs)
++ #   }
++ #   if (i == "EB"){
++ #     EB <- result_meta
++ #     EB[,"name"] <- getKEGGnames(substr(rownames(EB),4,8))
++ #     EB[, "ID"]   <- rownames(EB)
++ #     EB <- EB[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(EB, "all.results.EB.txt", sep = "\t", quote = F, row.names = F)
++ #     EBs = subset(EB, EB[,"p.adjust"] < corte)
++ #     write.table(EBs, "sig.results.EB.txt", sep = "\t", quote = F, row.names = F)
++ #     idEB = rownames(EBs)
++ #   }
++   if (i == "PM"){
++     PM <- result_meta
++     PM[,"name"] <- getKEGGnames(substr(rownames(PM),4,8))
++     PM[, "ID"]   <- rownames(PM)
++     PM <- PM[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(PM, "all.results.PM.txt", sep = "\t", quote = F, row.names = F)
++     PMs = subset(PM, PM[,"p.adjust"] < corte)
++     write.table(PMs, "sig.results.PM.txt", sep = "\t", quote = F, row.names = F)
++     idPM = rownames(PMs)
++   }
++   if (i == "FE"){
++     FE <- result_meta
++     FE[,"name"] <- getKEGGnames(substr(rownames(FE),4,8))
++     FE[, "ID"]   <- rownames(FE)
++     FE <- FE[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(FE, "all.results.FE.txt", sep = "\t", quote = F, row.names = F)
++     FEs = subset(FE, FE[,"p.adjust"] < corte)
++     write.table(FEs, "sig.results.FE.txt", sep = "\t", quote = F, row.names = F)
++     idFE = rownames(FEs)
++   }
++ }
+Using KEGG.db version: 3.2.2
+Using KEGG.db version: 3.2.2
+Using KEGG.db version: 3.2.2
+Using KEGG.db version: 3.2.2
+Using KEGG.db version: 3.2.2
+Using KEGG.db version: 3.2.2
+Warning messages:
+1: In getKEGGnames(substr(rownames(DL), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+2: In getKEGGnames(substr(rownames(HE), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+3: In getKEGGnames(substr(rownames(HS), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+4: In getKEGGnames(substr(rownames(SJ), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+5: In getKEGGnames(substr(rownames(PM), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+6: In getKEGGnames(substr(rownames(FE), 4, 8)) :
+  1728 KEEGids where not found; missing names generated.
+> 
+> 
+> 
+> ##GLOBAL RESULTS
+> setwd (file.path (.job$dir$code, "results","reactome","paired","files"))
+> 
+> 
+> # A. All results for different models
+> print(res)
+   over under sig.over sig.under sig.or.over sig.or.under
+DL  839   883      261       308          50           72
+HE  843   879      272       315          51           80
+HS  840   882      272       321          51           75
+SJ  841   881      198       274          41           67
+PM  841   881      263       311          51           75
+FE  842   878      312       387          63           87
+> cat ("method\t", file = "res_all.txt")
+> write.table (res, file = "res_all.txt",
++              append = TRUE, quote = FALSE, sep = "\t", 
++              row.names = TRUE, col.names = TRUE)
+Warning message:
+In write.table(res, file = "res_all.txt", append = TRUE, quote = FALSE,  :
+  appending column names to file
+> 
+> 
+> # B. Intersection
+> # intersectmodels = Reduce(intersect, list(idDL, idHE, idHS, idSJ, idML, idREML, idEB, idPM, idFE))
+>  intersectmodels =  Reduce(intersect,  list(idDL, idHE, idHS, idSJ,                 idPM, idFE))
+> length(intersectmodels)
+[1] 472
+> write.table (intersectmodels, file = "res_intersection.txt",
++              quote = FALSE, sep = "\t", row.names = F, col.names = F)
+> # # to print in a file:
+> # cat(intersectmodels, file = "intersection_models.txt", sep = "\n", append = TRUE) 
+> # cat("\nList of identifiers generated from the intersection of  generated models.")
+> 
+> 
+> 
+> # C. Union
+> #unionmodels = Reduce(c, list(idDL, idHE, idHS, idSJ, idML, idREML, idEB, idPM, idFE))
+>  unionmodels = Reduce(c, list(idDL, idHE, idHS, idSJ,               idPM, idFE))
+> 
+> mat.union <- as.data.frame(table(unionmodels))
+> dim(mat.union)
+[1] 699   2
+> mat.union <- mat.union[order(mat.union$Freq, decreasing = T),]
+> cat ("ID\tFreq\n", file = "res_union.txt")
+> write.table (mat.union, file = "res_union.txt",append = TRUE,
++              quote = FALSE, sep = "\t", row.names = F, col.names = F)
+> 
+> 
+> 
+> 
+> # STEP 3. GRAPHICAL REPRESENTATION
+> #################################################################
+> 
+> if (file.exists(file.path (.job$dir$code, "results",  "reactome", "paired", "plots"))){
++   setwd(file.path(.job$dir$code, "results",  "reactome", "paired", "plots"))
++ } else {
++   dir.create(file.path(.job$dir$code, "results",  "reactome", "paired", "plots"), recursive = T)
++   setwd(file.path(.job$dir$code, "results",  "reactome", "paired", "plots"))    
++ }
+> 
+> 
+> 
+> 
+> ## 3.1. plot to evaluate heterogeneity for all models 
+> ######################################################
+> 
+> # methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
+> #             rep("ML", nrow(ML)),rep("REML", nrow(REML)),rep("EB", nrow(EB)),
+> #             rep("PM", nrow(PM)),rep("FE", nrow(FE)))
+> methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
++                                                     rep("PM", nrow(PM)),rep("FE", nrow(FE)) )
+> # QEp   <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp, ML$QEp, REML$QEp, EB$QEp, PM$QEp, FE$QEp)
+> QEp      <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp,                    PM$QEp, FE$QEp)
+> SE       <- c(DL$SE, HE$SE, HS$SE, SJ$SE,                    PM$SE, FE$SE)
+> I2       <- c(DL$I2, HE$I2, HS$I2, SJ$I2,                    PM$I2, FE$I2)
+> H2       <- c(DL$H2, HE$H2, HS$H2, SJ$H2,                    PM$H2, FE$H2)
+> tau2     <- c(DL$tau2, HE$tau2, HS$tau2, SJ$tau2,                   PM$tau2, FE$tau2)
+> 
+> datos <- data.frame (cbind(as.factor(methods), QEp, SE, I2, H2, tau2))
+> head(datos)
+  V1   QEp    SE     I2    H2  tau2
+1  1 0.463 0.079  0.000 1.000 0.000
+2  1 0.646 0.024  0.000 1.000 0.000
+3  1 0.032 0.058 42.732 1.746 0.024
+4  1 0.892 0.041  0.000 1.000 0.000
+5  1 0.411 0.043  3.717 1.039 0.001
+6  1 0.017 0.045 46.903 1.883 0.016
+> dim(datos)
+[1] 10368     6
+> summary(datos)
+       V1           QEp               SE                I2       
+ Min.   :1.0   Min.   :0.0000   Min.   :0.01400   Min.   : 0.00  
+ 1st Qu.:2.0   1st Qu.:0.1930   1st Qu.:0.04800   1st Qu.: 0.00  
+ Median :3.5   Median :0.6955   Median :0.07700   Median : 0.00  
+ Mean   :3.5   Mean   :0.5843   Mean   :0.09708   Mean   :13.37  
+ 3rd Qu.:5.0   3rd Qu.:0.9580   3rd Qu.:0.12500   3rd Qu.:22.50  
+ Max.   :6.0   Max.   :1.0000   Max.   :0.61900   Max.   :98.03  
+       H2              tau2        
+ Min.   : 1.000   Min.   :0.00000  
+ 1st Qu.: 1.000   1st Qu.:0.00000  
+ Median : 1.000   Median :0.00000  
+ Mean   : 1.368   Mean   :0.05502  
+ 3rd Qu.: 1.290   3rd Qu.:0.01400  
+ Max.   :50.702   Max.   :6.06500  
+> param <- c("QEp", "SE", "I2", "H2", "tau2")
+> x.por <- 3
+> y.por <- 2
+> 
+> 
+> # We drawn separately QEp because we need abline for 0.05
+> jpeg (filename = "KEGG_het_QEp.jpeg",  
++       width = 480 *x.por ,   height = 480*y.por,
++       pointsize = 150, quality = 100) 
+> p <- ggplot(datos, aes(methods, datos[, "QEp"]))
+> p <- p + geom_boxplot(col = "blue")
+> p <- p + xlab("Métodos") 
+> p <- p + ylab("QEp")
+> p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
+> p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
+> p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + geom_hline(yintercept = 0.05, col = "red")
+> print(p)
+> dev.off ()
+null device 
+          1 
+> 
+> #Now the rest:
+> for (i in 2:length(param)){
++   jpeg (filename = paste("KEGG_het_", param[i], ".jpeg", sep = ""),  
++         width = 480 *x.por ,   height = 480*y.por,
++         pointsize = 150, quality = 100) 
++   p <- ggplot(datos, aes(methods, datos[, param[i]]))
++   p <- p + geom_boxplot(col = "blue")
++   p <- p + xlab("Métodos") 
++   p <- p + ylab(param[i])
++   p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
++   p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
++   p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
++   p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
++ #   p <- p + geom_hline(yintercept = 0.05, col = "red")
++   print(p)
++   dev.off ()
++ }
+> 
+> 
+> 
+> 
+> 
+> ## 3.2. plots to explore OUTPUT data: LOR vs. FDR (volcano plot) 
+> ######################################################
+> 
+> # This plot shows final results for each method
+> # We want to know the relationship between combined LOR and its SE
+> 
+> # Select results for a specific method:
+> res.method = DL #  results from Dersimonian-Laird method
+> 
+> summary(res.method[, "summary_LOR"])
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+-2.502000 -0.112200 -0.003000 -0.006657  0.128000  1.810000 
+> summary(res.method[, "p.adjust"])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  0.000   0.016   0.173   0.313   0.580   0.997 
+> log10 <- -log(res.method[, "p.adjust"], base = 10)
+> summary(log10)
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+0.001305 0.236600 0.762000      Inf 1.796000      Inf 
+> corte.logfdr <- 3
+> table(log10 > 3)
+
+FALSE  TRUE 
+ 1499   229 
+> head(res.method)
+                         ID name lower_bound summary_LOR upper_bound pvalue
+R-HSA-1059683 R-HSA-1059683 <NA>      -0.266      -0.110       0.045  0.164
+R-HSA-109581   R-HSA-109581 <NA>      -0.092      -0.046       0.000  0.051
+R-HSA-109606   R-HSA-109606 <NA>      -0.228      -0.114      -0.001  0.049
+R-HSA-109688   R-HSA-109688 <NA>      -0.127      -0.047       0.034  0.253
+R-HSA-109703   R-HSA-109703 <NA>      -0.112      -0.027       0.057  0.528
+R-HSA-109704   R-HSA-109704 <NA>      -0.102      -0.014       0.074  0.756
+              p.adjust     QE   QEp    SE  tau2     I2    H2
+R-HSA-1059683    0.284 15.851 0.463 0.079 0.000  0.000 1.000
+R-HSA-109581     0.117 13.359 0.646 0.024 0.000  0.000 1.000
+R-HSA-109606     0.112 27.939 0.032 0.058 0.024 42.732 1.746
+R-HSA-109688     0.392  9.494 0.892 0.041 0.000  0.000 1.000
+R-HSA-109703     0.662 16.618 0.411 0.043 0.001  3.717 1.039
+R-HSA-109704     0.840 30.134 0.017 0.045 0.016 46.903 1.883
+> 
+> #I assign colors but the plot show other colors by default. I have to adjust it!
+> 
+> res.method$threshold = rep("white", nrow(res.method))
+> sig.up   <- (res.method[, "p.adjust"] < 0.05) & (res.method[, "summary_LOR"] > 0)
+> sig.down <- (res.method[, "p.adjust"] < 0.05) & (res.method[, "summary_LOR"] < 0)
+> 
+> res.method$threshold [sig.up]    <- "blue"
+> res.method$threshold [sig.down]  <- "red"
+> table(res.method$threshold)
+
+ blue   red white 
+  261   308  1159 
+> res.method2 <- res.method[log10 < corte.logfdr,]
+> table(res.method2$threshold)
+
+ blue   red white 
+  158   136  1159 
+> 
+> dim(res.method2)
+[1] 1453   14
+> res.method$threshold <- as.factor(res.method$threshold)
+> 
+> ##Construct the plot object
+> x.por <- 3
+> y.por <- 3
+> jpeg (filename = "volcano_paired_reactome.jpeg",  width = 480 *x.por ,   height = 480*y.por, pointsize = 100, quality = 100) 
+> g <- ggplot(data=res.method2, aes(x=summary_LOR, y=-log10(p.adjust), colour= threshold)) #generate data
+> g <- g + geom_point(alpha=0.8, size=4) 
+> g <- g + xlim(c(-0.51, 0.51)) + ylim(c(0, 3.1))
+> g <- g + xlab("log2 Odds Ratio") 
+> g <- g + theme(axis.title.x= element_text(colour= "black", size = 35 )) #to change size of title in axis x
+> g <- g + ylab("-log10 FDR") 
+> g <- g + theme(axis.title.y= element_text(colour= "black", size = 35 )) #to change size of title in axis y
+> g <- g + labs(title = "Volcano plot")
+> g <- g + theme(title= element_text(colour= "black", size = 35 )) #to change size of title 
+> g <- g + theme(axis.text.x = element_text(colour= "black", size = 35 )) #to change size of numbers
+> g <- g + theme(axis.text.y = element_text(colour= "black", size = 35 )) #to change size of numbers
+> g <- g + geom_vline(xintercept= c(0), colour = "black", size = 0.5)
+> g <- g + geom_hline(yintercept= -log(0.05, base= 10), colour = "black", size = 0.5)
+> g <- g + theme(legend.position = "none") 
+> print(g)
+Warning message:
+Removed 48 rows containing missing values (geom_point). 
+> dev.off ()
+null device 
+          1 
+> 
+> 
+> ## 3.3. plot to evaluate heterogeneity for all models 
+> ######################################################
+> 
+> # methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
+> #             rep("ML", nrow(ML)),rep("REML", nrow(REML)),rep("EB", nrow(EB)),
+> #             rep("PM", nrow(PM)),rep("FE", nrow(FE)))
+> methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
++              rep("PM", nrow(PM)),rep("FE", nrow(FE)) )
+> # QEp   <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp, ML$QEp, REML$QEp, EB$QEp, PM$QEp, FE$QEp)
+> QEp      <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp,                    PM$QEp, FE$QEp)
+> SE       <- c(DL$SE, HE$SE, HS$SE, SJ$SE,                    PM$SE, FE$SE)
+> I2       <- c(DL$I2, HE$I2, HS$I2, SJ$I2,                    PM$I2, FE$I2)
+> H2       <- c(DL$H2, HE$H2, HS$H2, SJ$H2,                    PM$H2, FE$H2)
+> tau2     <- c(DL$tau2, HE$tau2, HS$tau2, SJ$tau2,                   PM$tau2, FE$tau2)
+> 
+> datos <- data.frame (cbind(as.factor(methods), QEp, SE, I2, H2, tau2))
+> head(datos)
+  V1   QEp    SE     I2    H2  tau2
+1  1 0.463 0.079  0.000 1.000 0.000
+2  1 0.646 0.024  0.000 1.000 0.000
+3  1 0.032 0.058 42.732 1.746 0.024
+4  1 0.892 0.041  0.000 1.000 0.000
+5  1 0.411 0.043  3.717 1.039 0.001
+6  1 0.017 0.045 46.903 1.883 0.016
+> dim(datos)
+[1] 10368     6
+> summary(datos)
+       V1           QEp               SE                I2       
+ Min.   :1.0   Min.   :0.0000   Min.   :0.01400   Min.   : 0.00  
+ 1st Qu.:2.0   1st Qu.:0.1930   1st Qu.:0.04800   1st Qu.: 0.00  
+ Median :3.5   Median :0.6955   Median :0.07700   Median : 0.00  
+ Mean   :3.5   Mean   :0.5843   Mean   :0.09708   Mean   :13.37  
+ 3rd Qu.:5.0   3rd Qu.:0.9580   3rd Qu.:0.12500   3rd Qu.:22.50  
+ Max.   :6.0   Max.   :1.0000   Max.   :0.61900   Max.   :98.03  
+       H2              tau2        
+ Min.   : 1.000   Min.   :0.00000  
+ 1st Qu.: 1.000   1st Qu.:0.00000  
+ Median : 1.000   Median :0.00000  
+ Mean   : 1.368   Mean   :0.05502  
+ 3rd Qu.: 1.290   3rd Qu.:0.01400  
+ Max.   :50.702   Max.   :6.06500  
+> param <- c("QEp", "SE", "I2", "H2", "tau2")
+> x.por <- 3
+> y.por <- 2
+> 
+> 
+> # We drawn separately QEp because we need abline for 0.05
+> jpeg (filename = "reactome_het_QEp.jpeg",  
++       width = 480 *x.por ,   height = 480*y.por,
++       pointsize = 150, quality = 100) 
+> p <- ggplot(datos, aes(methods, datos[, "QEp"]))
+> p <- p + geom_boxplot(col = "blue")
+> p <- p + xlab("Métodos") 
+> p <- p + ylab("QEp")
+> p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
+> p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
+> p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + geom_hline(yintercept = 0.05, col = "red")
+> print(p)
+> dev.off ()
+null device 
+          1 
+> 
+> #Now the rest:
+> for (i in 2:length(param)){
++   jpeg (filename = paste("reactome_het_", param[i], ".jpeg", sep = ""),  
++         width = 480 *x.por ,   height = 480*y.por,
++         pointsize = 150, quality = 100) 
++   p <- ggplot(datos, aes(methods, datos[, param[i]]))
++   p <- p + geom_boxplot(col = "blue")
++   p <- p + xlab("Métodos") 
++   p <- p + ylab(param[i])
++   p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
++   p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
++   p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
++   p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
++   #   p <- p + geom_hline(yintercept = 0.05, col = "red")
++   print(p)
++   dev.off ()
++ }
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> ## 3.4. plot to evaluate heterogeneity and biases for each specific model and function
+> ###################################################### 
+> 
+> # Select results for a specific method:
+> res.method = DLs # significant results from Dersimonian-Laird method
+> metodo <- "DL"   # method to estimate the variability
+> 
+> sig.fun <- rownames(res.method)
+> x.por = 2.5; y.por = 2.5
+> 
+> 
+> if (length(sig.fun) == 0){print ("Not significant results")} else {
++   for (i in 1:length(sig.fun)){
++     #fit the model. It will be used for several plots
++     res <- rma(yi= mat.lor[sig.fun[i],], sei =mat.sd[sig.fun[i],], method = metodo)
++     
++     ## A. FOREST PLOT (detailed infomation of size effect from each study)
++     #   jpeg (filename = paste("reactome_",sig.fun[i],".png",sep =""),
++     #         width = 480 *x.por ,   height = 480*y.por, pointsize = 100, quality = 100) 
++     
++     png (filename = paste("reactome_forest_", sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     par(mar=c(4,4,1,2))
++     forest(res, slab = toupper(substr(colnames(mat.lor),1,4)),
++            xlab="Odds Ratio", cex=0.7,
++            mlab=paste(metodo, "Model for All Studies", sep = " "), col = "red", 
++            main = paste("\n", sig.fun[i], " (", res.method[i,"name"], ")",sep=""))    
++     text( 9,-3, "Odds Ratio [IC 95%]", pos=2, cex = 0.7)
++     dev.off()
++     
++     ## B. FUNNEL  PLOT (detailed infomation of size effect from each study)
++     # A funnel plot shows the observed effect sizes or outcomes on the x-axis against 
++     # some measure of precision of the observed effect sizes or outcomes on the y-axis. 
++     # Based on Sterne and Egger (2001)
++     # http://www.metafor-project.org/doku.php/plots:funnel_plot_variations
++     png (filename = paste("REACTOME_funnel_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     ### set up 2x2 array for plotting
++     par(mfrow=c(2,2))
++     ### draw funnel plots
++     funnel(res, main="Standard Error", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="vi", main="Sampling Variance", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="seinv", main="Inverse Standard Error", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="vinv", main="Inverse Sampling Variance", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     dev.off()
++     
++     #     Some problems with this plot!!
++     #     ## C. FUNNEL PLOT with TRIM and FILL
++     #     # This funnel plot helps to detect asymmetries
++     #     # http://www.metafor-project.org/doku.php/plots:funnel_plot_with_trim_and_fill
++     #     png (filename = paste("go_mf_funnel_tf_",sig.fun[i],".png",sep =""),
++     #          width = 480 * x.por, height = 480 * y.por, res = 200)
++     #     par(mar=c(5,4,1,2))
++     #     ### carry out trim-and-fill analysis
++     #     taf <- trimfill(res)
++     #     ### draw funnel plot with missing studies filled in
++     #     funnel(taf, back ="darkslategray1",xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     #     dev.off()
++     
++     ## C. RADIAL PLOT 
++     # Radial plots were introduced by Rex Galbraith (1988a, 1988b, 1994) 
++     # and can be useful in the meta-analytic context to examine the data for heterogeneity.
++     # http://www.metafor-project.org/doku.php/plots:radial_plot
++     
++     ### to save as png file
++     png (filename = paste("reactome_radial_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     ### adjust margins so the space is better used
++     par(mar=c(5,4,0,2))
++     ### draw radial plot
++     radial(res,back ="darkslategray1",
++            main = paste("\n", sig.fun[i], " (", res.method[i,"name"], ")",sep=""))
++     dev.off()
++     
++     
++     ## D. INFLUENCE PLOT 
++     # That shows various diagnostic measures
++     
++     ### to save as png file
++ #     jpeg (filename = paste("reactome_influ_",sig.fun[i],".jpeg",sep =""),  
++ #           width = 480 *x.por ,   height = 480*y.por,
++ #           pointsize = 50, quality = 100) 
++     png (filename = paste("REACTOME_influ_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     inf <- influence(res)
++     plot(inf, plotfb = T)
++     dev.off()
++   }
++ }
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> 
+> 
+> 
+> 
+> ## 3.5. sensitivity analysis for a specific model 
+> ###################################################### 
+> 
+> # First we calculate sd of "estimates" for each method:
+> 
+> methods = c("DL", "HE", "HS", "SJ", "PM", "FE")  
+> 
+> mat.sen <- as.data.frame(matrix (NA, nrow = nrow(mat.lor), ncol = length (methods)))
+> colnames(mat.sen) <- methods
+> dim(mat.sen)
+[1] 1728    6
+> head(mat.sen)
+  DL HE HS SJ PM FE
+1 NA NA NA NA NA NA
+2 NA NA NA NA NA NA
+3 NA NA NA NA NA NA
+4 NA NA NA NA NA NA
+5 NA NA NA NA NA NA
+6 NA NA NA NA NA NA
+> 
+> 
+> for (i in methods){
++   meta_analisis <- lapply(1:length(rownames(mat.lor)),
++                           function(x){yi = rma(mat.lor[x, ], sei =mat.sd[x, ],
++                                                method = i)})
++   for (j in 1:length(meta_analisis)){
++     mat.sen[j,i]  <- sd(leave1out(meta_analisis[[j]])$se)
++     }
++   print(i)
++ }
+[1] "DL"
+[1] "HE"
+[1] "HS"
+[1] "SJ"
+
+Execution halted

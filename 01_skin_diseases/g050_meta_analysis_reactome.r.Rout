@@ -1,0 +1,1511 @@
+
+R version 3.3.0 (2016-05-03) -- "Supposedly Educational"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##g050_meta_analysis_reactome.r
+> ##2016-01-04 fgarcia@cipf.es, antoi@alumni.uv.es
+> ##Functional Meta-Analysis of transcriptomic studies
+> ##Annotation: REACTOME 
+> 
+> 
+> 
+> # STEP 1. Preparing input for meta-analysis: LOR and SD matrix
+> #################################################################
+> ## starting
+> date ()
+[1] "Sat May 28 20:38:20 2016"
+> Sys.info ()[c("nodename", "user")]
+        nodename             user 
+"fgarcia-laptop"        "fgarcia" 
+> commandArgs ()
+[1] "/usr/lib/R/bin/exec/R"         "-f"                           
+[3] "g050_meta_analysis_reactome.r" "--restore"                    
+[5] "--save"                        "--no-readline"                
+> R.version.string 
+[1] "R version 3.3.0 (2016-05-03)"
+> try (source (".job.r")); try (.job)
+
+.job.r has been sourced
+
+$name
+[1] "skin_diseases"
+
+$dir
+$dir$data
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data"
+
+$dir$code
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases"
+
+$dir$scripts
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/scripts"
+
+$dir$docs
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/documents"
+
+$dir$rawdat
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_raw"
+
+$dir$annotation
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_annotation"
+
+$dir$proces
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_processed"
+
+$dir$plots
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/results/plots"
+
+$dir$res
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/results/files"
+
+
+$testmode
+[1] FALSE
+
+$dec
+[1] "."
+
+$idsep
+[1] " /// "
+
+> 
+> # clean the working space
+> rm (list = ls ())
+> 
+> 
+> ### load libraries
+> # We need to install and load these packages:
+> library(Biobase); packageDescription("Biobase", fields = "Version")
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, as.vector, cbind, colnames,
+    do.call, duplicated, eval, evalq, Filter, Find, get, grep, grepl,
+    intersect, is.unsorted, lapply, lengths, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unlist, unsplit
+
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+[1] "2.30.0"
+> library(metafor); packageDescription("metafor", fields = "Version")
+Loading required package: Matrix
+Loading 'metafor' package (version 1.9-8). For an overview 
+and introduction to the package please type: help(metafor).
+[1] "1.9-8"
+> library(mdgsa); packageDescription("mdgsa", fields = "Version")
+Loading required package: DBI
+
+
+KEGG.db contains mappings based on older data because the original
+  resource was removed from the the public domain before the most
+  recent update was produced. This package should now be considered
+  deprecated and future versions of Bioconductor may not have it
+  available.  Users who want more current data are encouraged to look
+  at the KEGGREST or reactome.db packages
+
+[1] "1.2.0"
+> #library(RamiGO); packageDescription("RamiGO", fields = "Version")
+> library(ggplot2); packageDescription("ggplot2", fields = "Version")
+[1] "2.1.0"
+> library(reshape); packageDescription("reshape", fields = "Version")
+
+Attaching package: ‘reshape’
+
+The following object is masked from ‘package:Matrix’:
+
+    expand
+
+[1] "0.8.5"
+> 
+> 
+> ### previously for each study, we need results GSA from mdgsa in a file .RData including this structure (dataframe): 
+> ####            N        lor        pval      padj        sd          t conv
+> #### GO:0000002 12  0.4373106 0.128203007 1.0000000 0.2874434  1.5213797    1
+> #### GO:0000018 29  0.2177107 0.238623945 1.0000000 0.1847325  1.1785188    1
+> 
+> 
+> 
+> ### load results from gene set analysis for each study
+> setwd (file.path (.job$dir$proces, "gsa", "reactome"))
+> ficheros <- dir(pattern= ".RData")
+> ficheros
+ [1] "GSE11903_con_les_pso.RData"     "GSE12511_con_les_der.RData"    
+ [3] "GSE13355_con_les_pso.RData"     "GSE13355_con_nonles_pso.RData" 
+ [5] "GSE14905_con_les_pso.RData"     "GSE14905_con_nonles_pso.RData" 
+ [7] "GSE16161_con_les_der.RData"     "GSE16161_con_les_pso.RData"    
+ [9] "GSE18686_con_les_pso.RData"     "GSE26866_con_les_pso.RData"    
+[11] "GSE26952_con_les_der.RData"     "GSE26952_con_les_pso.RData"    
+[13] "GSE2737_con_les_pso.RData"      "GSE2737_con_nonles_pso.RData"  
+[15] "GSE27887_con_les_der.RData"     "GSE30768_con_les_pso.RData"    
+[17] "GSE30999_con_les_pso.RData"     "GSE31835_con_les_pso.RData"    
+[19] "GSE31835_con_nonles_pso.RData"  "GSE32407_con_nonles_pso.RData" 
+[21] "GSE32924_con_les_der.RData"     "GSE32924_con_nonles_der.RData" 
+[23] "GSE34248_con_les_pso.RData"     "GSE36842_con_les1_der.RData"   
+[25] "GSE36842_con_les2_der.RData"    "GSE36842_con_nonles_der.RData" 
+[27] "GSE40263_con_les_pso.RData"     "GSE41662_con_les_pso.RData"    
+[29] "GSE41663_con_les_pso.RData"     "GSE52471_con_les_pso.RData"    
+[31] "GSE53431_con_les_pso.RData"     "GSE5667.1_con_les_der.RData"   
+[33] "GSE5667.1_con_nonles_der.RData" "GSE5667.2_con_les_der.RData"   
+[35] "GSE5667.2_con_nonles_der.RData" "GSE6012_con_les_der.RData"     
+[37] "GSE6281_con_les0_der.RData"     "GSE6281_con_les1_der.RData"    
+[39] "GSE6281_con_les2_der.RData"     "GSE6281_con_les3_der.RData"    
+[41] "GSE6710_con_les_pso.RData"     
+> 
+> # we search a list including all unique reactome IDs for all studies
+> reactomeuniq<-NULL
+> for (fi in ficheros){
++   load (fi)
++   reactomeuniq <- c(reactomeuniq, rownames (res))
++ }
+> length (reactomeuniq)
+[1] 63590
+> reactomeuniq <- unique (reactomeuniq)
+> length (reactomeuniq)
+[1] 1787
+> reactomeuniq <- sort (reactomeuniq)
+> 
+> 
+> ### generating matrix with all LOR for all studies
+> mat.lor <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.lor) <- reactomeuniq
+> colnames (mat.lor) <- strsplit (ficheros, ".RData")
+> head (mat.lor[, 1:5])
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683                   NA                   NA                   NA
+R-HSA-109581                    NA                   NA                   NA
+R-HSA-109582                    NA                   NA                   NA
+R-HSA-109606                    NA                   NA                   NA
+R-HSA-109688                    NA                   NA                   NA
+R-HSA-109703                    NA                   NA                   NA
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683                      NA                   NA
+R-HSA-109581                       NA                   NA
+R-HSA-109582                       NA                   NA
+R-HSA-109606                       NA                   NA
+R-HSA-109688                       NA                   NA
+R-HSA-109703                       NA                   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   lor <- res$lor
++   names (lor) <- (rownames (res))
++   mat.lor[, co] <- lor[rownames(mat.lor)] 
++ }
+> 
+> head (mat.lor[, 1:5])
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683           0.22611759            0.5270677           0.64949777
+R-HSA-109581            0.44551905            0.2828112           0.49812734
+R-HSA-109582            0.07936494            0.4295203           0.02881882
+R-HSA-109606            0.46593549            0.3435768           0.62001089
+R-HSA-109688            0.32475568           -0.0584105           0.33377423
+R-HSA-109703            0.02630991           -0.3047822          -0.64165010
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683              0.19810057          0.001348705
+R-HSA-109581               0.01634193          0.287012218
+R-HSA-109582              -0.08834188         -0.098029253
+R-HSA-109606              -0.05250689          0.277915616
+R-HSA-109688               0.01852115          0.271914349
+R-HSA-109703              -0.35488054         -0.671656414
+> table (is.na(mat.lor))
+
+FALSE  TRUE 
+63590  9677 
+> dim (mat.lor)
+[1] 1787   41
+> summary(mat.lor)
+ GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+ Min.   :-2.5010      Min.   :-4.58542     Min.   :-2.6326     
+ 1st Qu.:-0.1552      1st Qu.:-0.07209     1st Qu.:-0.2653     
+ Median : 0.1265      Median : 0.22102     Median : 0.1136     
+ Mean   : 0.1289      Mean   : 0.19127     Mean   : 0.1445     
+ 3rd Qu.: 0.3970      3rd Qu.: 0.49163     3rd Qu.: 0.5354     
+ Max.   : 3.2929      Max.   : 3.48581     Max.   : 2.7966     
+                      NA's   :86           NA's   :86          
+ GSE13355_con_nonles_pso GSE14905_con_les_pso GSE14905_con_nonles_pso
+ Min.   :-4.01199        Min.   :-2.44618     Min.   :-3.15447       
+ 1st Qu.:-0.33590        1st Qu.:-0.36948     1st Qu.:-0.24503       
+ Median :-0.05292        Median :-0.01771     Median : 0.06322       
+ Mean   :-0.08468        Mean   : 0.06143     Mean   : 0.09254       
+ 3rd Qu.: 0.20126        3rd Qu.: 0.47928     3rd Qu.: 0.46966       
+ Max.   : 2.48313        Max.   : 2.72216     Max.   : 4.35823       
+ NA's   :86              NA's   :86           NA's   :86             
+ GSE16161_con_les_der GSE16161_con_les_pso GSE18686_con_les_pso
+ Min.   :-88.00503    Min.   :-2.44918     Min.   :-2.56905    
+ 1st Qu.: -0.31861    1st Qu.:-0.19075     1st Qu.:-0.29384    
+ Median : -0.14391    Median : 0.03643     Median : 0.05917    
+ Mean   : -0.18067    Mean   : 0.03853     Mean   : 0.07714    
+ 3rd Qu.:  0.05076    3rd Qu.: 0.25660     3rd Qu.: 0.45963    
+ Max.   :  2.38672    Max.   : 2.39191     Max.   : 2.81938    
+ NA's   :86           NA's   :86           NA's   :93          
+ GSE26866_con_les_pso GSE26952_con_les_der GSE26952_con_les_pso
+ Min.   :-2.6599      Min.   :-2.66962     Min.   :-2.62436    
+ 1st Qu.:-0.2085      1st Qu.:-0.19456     1st Qu.:-0.20730    
+ Median : 0.1770      Median : 0.06813     Median : 0.04310    
+ Mean   : 0.1576      Mean   : 0.08696     Mean   : 0.07273    
+ 3rd Qu.: 0.5089      3rd Qu.: 0.33905     3rd Qu.: 0.34627    
+ Max.   : 3.1087      Max.   : 6.14810     Max.   : 2.91461    
+ NA's   :93           NA's   :110          NA's   :110         
+ GSE2737_con_les_pso GSE2737_con_nonles_pso GSE27887_con_les_der
+ Min.   :-2.4543     Min.   :-3.17598       Min.   :-3.36874    
+ 1st Qu.:-0.1932     1st Qu.:-0.22355       1st Qu.:-0.29843    
+ Median : 0.1669     Median : 0.02956       Median : 0.13002    
+ Mean   : 0.1510     Mean   : 0.01444       Mean   : 0.06164    
+ 3rd Qu.: 0.4848     3rd Qu.: 0.29507       3rd Qu.: 0.45104    
+ Max.   : 2.1552     Max.   : 2.57094       Max.   : 3.07260    
+ NA's   :136         NA's   :136            NA's   :136         
+ GSE30768_con_les_pso GSE30999_con_les_pso GSE31835_con_les_pso
+ Min.   :-2.9270      Min.   :-3.0621      Min.   :-2.67627    
+ 1st Qu.:-0.1702      1st Qu.:-0.2699      1st Qu.:-0.28051    
+ Median : 0.1669      Median : 0.1402      Median :-0.04876    
+ Mean   : 0.1581      Mean   : 0.1519      Mean   :-0.02503    
+ 3rd Qu.: 0.4749      3rd Qu.: 0.6362      3rd Qu.: 0.22366    
+ Max.   : 2.8482      Max.   : 2.6112      Max.   : 3.33868    
+ NA's   :136          NA's   :136          NA's   :148         
+ GSE31835_con_nonles_pso GSE32407_con_nonles_pso GSE32924_con_les_der
+ Min.   :-2.34372        Min.   :-2.76442        Min.   :-4.8134     
+ 1st Qu.:-0.41717        1st Qu.:-0.20225        1st Qu.:-0.3537     
+ Median :-0.11752        Median : 0.13036        Median :-0.1008     
+ Mean   :-0.08871        Mean   : 0.06553        Mean   :-0.0619     
+ 3rd Qu.: 0.20626        3rd Qu.: 0.38236        3rd Qu.: 0.1619     
+ Max.   : 3.31107        Max.   : 2.20173        Max.   : 3.0621     
+ NA's   :148             NA's   :148             NA's   :148         
+ GSE32924_con_nonles_der GSE34248_con_les_pso GSE36842_con_les1_der
+ Min.   :-3.3907         Min.   :-3.1545      Min.   :-2.85489     
+ 1st Qu.:-0.4736         1st Qu.:-0.3099      1st Qu.:-0.38829     
+ Median :-0.1818         Median : 0.1654      Median :-0.06825     
+ Mean   :-0.1266         Mean   : 0.1509      Mean   :-0.05508     
+ 3rd Qu.: 0.1588         3rd Qu.: 0.6518      3rd Qu.: 0.25024     
+ Max.   : 3.1174         Max.   : 3.4916      Max.   : 2.37857     
+ NA's   :148             NA's   :148          NA's   :148          
+ GSE36842_con_les2_der GSE36842_con_nonles_der GSE40263_con_les_pso
+ Min.   :-5.25716      Min.   :-2.5207         Min.   :-3.4034     
+ 1st Qu.:-0.26557      1st Qu.:-0.5307         1st Qu.:-0.9728     
+ Median : 0.02382      Median :-0.2115         Median :-0.5934     
+ Mean   : 0.02389      Mean   :-0.1647         Mean   :-0.5160     
+ 3rd Qu.: 0.30685      3rd Qu.: 0.1687         3rd Qu.:-0.1016     
+ Max.   : 4.54516      Max.   : 3.4138         Max.   : 2.8586     
+ NA's   :148           NA's   :148             NA's   :151         
+ GSE41662_con_les_pso GSE41663_con_les_pso GSE52471_con_les_pso
+ Min.   :-2.5528      Min.   :-2.9697      Min.   :-2.5068     
+ 1st Qu.:-0.2869      1st Qu.:-0.2095      1st Qu.:-0.2130     
+ Median : 0.1801      Median : 0.2102      Median : 0.1560     
+ Mean   : 0.1963      Mean   : 0.1846      Mean   : 0.1303     
+ 3rd Qu.: 0.7005      3rd Qu.: 0.6506      3rd Qu.: 0.4514     
+ Max.   : 2.6825      Max.   : 3.0227      Max.   : 3.3177     
+ NA's   :151          NA's   :151          NA's   :187         
+ GSE53431_con_les_pso GSE5667.1_con_les_der GSE5667.1_con_nonles_der
+ Min.   :-3.3240      Min.   :-3.03932      Min.   :-2.89143        
+ 1st Qu.:-0.2532      1st Qu.:-0.28622      1st Qu.:-0.26089        
+ Median : 0.1771      Median : 0.14848      Median : 0.11252        
+ Mean   : 0.1875      Mean   : 0.09279      Mean   : 0.05802        
+ 3rd Qu.: 0.6128      3rd Qu.: 0.44597      3rd Qu.: 0.35894        
+ Max.   : 3.8212      Max.   : 4.01724      Max.   : 2.65336        
+ NA's   :219          NA's   :219           NA's   :219             
+ GSE5667.2_con_les_der GSE5667.2_con_nonles_der GSE6012_con_les_der
+ Min.   :-3.5274       Min.   :-2.4897          Min.   :-3.2146    
+ 1st Qu.:-0.4796       1st Qu.:-0.4129          1st Qu.:-0.4314    
+ Median :-0.0354       Median : 0.0103          Median :-0.0614    
+ Mean   :-0.0079       Mean   :-0.0151          Mean   : 0.0052    
+ 3rd Qu.: 0.3471       3rd Qu.: 0.4132          3rd Qu.: 0.4517    
+ Max.   : 5.9465       Max.   : 2.6096          Max.   : 2.8184    
+ NA's   :670           NA's   :670              NA's   :670        
+ GSE6281_con_les0_der GSE6281_con_les1_der GSE6281_con_les2_der
+ Min.   :-3.8656      Min.   :-2.8365      Min.   :-2.2794     
+ 1st Qu.:-0.5754      1st Qu.:-0.7376      1st Qu.:-0.5599     
+ Median :-0.2076      Median :-0.4075      Median :-0.2741     
+ Mean   :-0.1994      Mean   :-0.3880      Mean   :-0.2303     
+ 3rd Qu.: 0.1890      3rd Qu.:-0.0713      3rd Qu.: 0.0594     
+ Max.   : 2.5975      Max.   : 2.2348      Max.   : 2.1744     
+ NA's   :670          NA's   :670          NA's   :670         
+ GSE6281_con_les3_der GSE6710_con_les_pso
+ Min.   :-2.9456      Min.   :-2.5760    
+ 1st Qu.:-0.6623      1st Qu.:-0.2210    
+ Median :-0.2214      Median : 0.1063    
+ Mean   :-0.2183      Mean   : 0.1939    
+ 3rd Qu.: 0.1991      3rd Qu.: 0.5558    
+ Max.   : 3.1294      Max.   : 3.2392    
+ NA's   :670          NA's   :670        
+> 
+> 
+> ### generating matrix with all SD for all studies
+> mat.sd <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.sd) <- reactomeuniq
+> colnames (mat.sd) <- strsplit (ficheros, ".RData")
+> head (mat.sd[, 1:5])
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683                   NA                   NA                   NA
+R-HSA-109581                    NA                   NA                   NA
+R-HSA-109582                    NA                   NA                   NA
+R-HSA-109606                    NA                   NA                   NA
+R-HSA-109688                    NA                   NA                   NA
+R-HSA-109703                    NA                   NA                   NA
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683                      NA                   NA
+R-HSA-109581                       NA                   NA
+R-HSA-109582                       NA                   NA
+R-HSA-109606                       NA                   NA
+R-HSA-109688                       NA                   NA
+R-HSA-109703                       NA                   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   sd <- res$sd
++   names (sd) <- (rownames (res))
++   head (sd)
++   mat.sd[, co] <- sd[rownames(mat.sd)] 
++ }
+> 
+> head (mat.sd)
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683           0.31712236           0.38028660           0.35012800
+R-HSA-109581            0.08985395           0.11135980           0.11623489
+R-HSA-109582            0.04807283           0.05966103           0.05816188
+R-HSA-109606            0.17993505           0.20767317           0.21241891
+R-HSA-109688            0.17573321           0.22371273           0.22444254
+R-HSA-109703            0.17703860           0.23083308           0.23830924
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683              0.35135362           0.35364862
+R-HSA-109581               0.11133785           0.11325674
+R-HSA-109582               0.05819188           0.05821413
+R-HSA-109606               0.20873983           0.21160671
+R-HSA-109688               0.22372898           0.22467097
+R-HSA-109703               0.23322335           0.22825210
+              GSE14905_con_nonles_pso GSE16161_con_les_der GSE16161_con_les_pso
+R-HSA-1059683              0.35368605           0.35363836           0.35298451
+R-HSA-109581               0.11189029           0.11129742           0.11135514
+R-HSA-109582               0.05815936           0.05812122           0.05846943
+R-HSA-109606               0.21033141           0.20826531           0.20842789
+R-HSA-109688               0.23493295           0.22370284           0.22256112
+R-HSA-109703               0.22931894           0.22822011           0.22962791
+              GSE18686_con_les_pso GSE26866_con_les_pso GSE26952_con_les_der
+R-HSA-1059683           0.35035471            0.3505943           0.35365100
+R-HSA-109581            0.11412227            0.1136490           0.11226529
+R-HSA-109582            0.05902137            0.0593895           0.05999758
+R-HSA-109606            0.21474520            0.2113017           0.21370298
+R-HSA-109688            0.22109019            0.2204565           0.23559595
+R-HSA-109703            0.23494135            0.2359075           0.23583978
+              GSE26952_con_les_pso GSE2737_con_les_pso GSE2737_con_nonles_pso
+R-HSA-1059683           0.35452037          0.33940282             0.37796938
+R-HSA-109581            0.11307039          0.11808726             0.11637390
+R-HSA-109582            0.06000865          0.06326984             0.06327364
+R-HSA-109606            0.21332131          0.20583710             0.21048362
+R-HSA-109688            0.23748726          0.25082621             0.25033305
+R-HSA-109703            0.23587346          0.25811683             0.25492610
+              GSE27887_con_les_der GSE30768_con_les_pso GSE30999_con_les_pso
+R-HSA-1059683           0.39003719           0.37479707           0.37691853
+R-HSA-109581            0.11661094           0.11865888           0.12043764
+R-HSA-109582            0.06314907           0.06296611           0.06268169
+R-HSA-109606            0.21854047           0.21317874           0.23128701
+R-HSA-109688            0.24894986           0.27306092           0.25696253
+R-HSA-109703            0.25696247           0.25837994           0.25979854
+              GSE31835_con_les_pso GSE31835_con_nonles_pso
+R-HSA-1059683           0.37696075              0.37789256
+R-HSA-109581            0.11634945              0.11658787
+R-HSA-109582            0.06391228              0.06383588
+R-HSA-109606            0.21134466              0.21259528
+R-HSA-109688            0.25607640              0.25831593
+R-HSA-109703            0.25719460              0.25831418
+              GSE32407_con_nonles_pso GSE32924_con_les_der
+R-HSA-1059683              0.34517760           0.37846631
+R-HSA-109581               0.11777279           0.11647173
+R-HSA-109582               0.06399329           0.06367098
+R-HSA-109606               0.22686796           0.21328570
+R-HSA-109688               0.24354808           0.25757542
+R-HSA-109703               0.25958608           0.25708159
+              GSE32924_con_nonles_der GSE34248_con_les_pso
+R-HSA-1059683              0.40017743           0.35557578
+R-HSA-109581               0.11735572           0.12585444
+R-HSA-109582               0.06384872           0.06370233
+R-HSA-109606               0.21421813           0.23344467
+R-HSA-109688               0.26170530           0.23129478
+R-HSA-109703               0.25835370           0.25941403
+              GSE36842_con_les1_der GSE36842_con_les2_der
+R-HSA-1059683            0.37811045            0.38189649
+R-HSA-109581             0.11656179            0.11646180
+R-HSA-109582             0.06364322            0.06363844
+R-HSA-109606             0.21479527            0.21331991
+R-HSA-109688             0.25430509            0.25843547
+R-HSA-109703             0.25861214            0.25860319
+              GSE36842_con_nonles_der GSE40263_con_les_pso GSE41662_con_les_pso
+R-HSA-1059683              0.38623660           0.30470110           0.36944626
+R-HSA-109581               0.11547971           0.12553071           0.12344591
+R-HSA-109582               0.06407161           0.06419043           0.06402889
+R-HSA-109606               0.21507078           0.18769896           0.22923557
+R-HSA-109688               0.27147914           0.19966600           0.24298754
+R-HSA-109703               0.25831259           0.24023799           0.26752809
+              GSE41663_con_les_pso GSE52471_con_les_pso GSE53431_con_les_pso
+R-HSA-1059683           0.35917193           0.40813759           0.40836768
+R-HSA-109581            0.12568464           0.12422304           0.14451883
+R-HSA-109582            0.06402313           0.06880311           0.07533386
+R-HSA-109606            0.24917899           0.23596578           0.28114414
+R-HSA-109688            0.23766507           0.25261077           0.27749209
+R-HSA-109703            0.26746545           0.30172880           0.30255509
+              GSE5667.1_con_les_der GSE5667.1_con_nonles_der
+R-HSA-1059683            0.39972940               0.39344476
+R-HSA-109581             0.13027673               0.13039247
+R-HSA-109582             0.07588639               0.07560673
+R-HSA-109606             0.26210705               0.26985996
+R-HSA-109688             0.28305550               0.27691177
+R-HSA-109703             0.30168654               0.31628482
+              GSE5667.2_con_les_der GSE5667.2_con_nonles_der
+R-HSA-1059683             0.5260940                0.5577885
+R-HSA-109581              0.2359219                0.2358973
+R-HSA-109582              0.1481884                0.1481308
+R-HSA-109606              0.4452609                0.4455097
+R-HSA-109688              0.4473178                0.4473910
+R-HSA-109703              0.5759061                0.5712237
+              GSE6012_con_les_der GSE6281_con_les0_der GSE6281_con_les1_der
+R-HSA-1059683           0.5544220            0.6924873            0.6184226
+R-HSA-109581            0.2359141            0.2356913            0.2343999
+R-HSA-109582            0.1477967            0.1495461            0.1483508
+R-HSA-109606            0.4519329            0.4453103            0.4358545
+R-HSA-109688            0.3973337            0.4385176            0.4257215
+R-HSA-109703            0.5757801            0.5097524            0.3381038
+              GSE6281_con_les2_der GSE6281_con_les3_der GSE6710_con_les_pso
+R-HSA-1059683            0.7121964            0.8938954           0.5509425
+R-HSA-109581             0.2356336            0.2358180           0.2364045
+R-HSA-109582             0.1476387            0.1479067           0.1478464
+R-HSA-109606             0.4439650            0.4552151           0.5234299
+R-HSA-109688             0.4472969            0.4460510           0.3681051
+R-HSA-109703             0.4179817            0.4811816           0.5877819
+> table (is.na(mat.sd))
+
+FALSE  TRUE 
+63590  9677 
+> dim (mat.sd)
+[1] 1787   41
+> summary(mat.sd)
+ GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+ Min.   :0.02692      Min.   :0.03383      Min.   :0.03283     
+ 1st Qu.:0.16465      1st Qu.:0.20457      1st Qu.:0.21000     
+ Median :0.27069      Median :0.32922      Median :0.33340     
+ Mean   :0.33873      Mean   :0.37991      Mean   :0.37982     
+ 3rd Qu.:0.44458      3rd Qu.:0.49979      3rd Qu.:0.49644     
+ Max.   :1.00015      Max.   :1.00015      Max.   :1.08494     
+                      NA's   :86           NA's   :86          
+ GSE13355_con_nonles_pso GSE14905_con_les_pso GSE14905_con_nonles_pso
+ Min.   :0.03282         Min.   :0.03311      Min.   :0.03284        
+ 1st Qu.:0.20443         1st Qu.:0.20630      1st Qu.:0.20445        
+ Median :0.33345         Median :0.33069      Median :0.33224        
+ Mean   :0.38508         Mean   :0.37758      Mean   :0.37804        
+ 3rd Qu.:0.50002         3rd Qu.:0.49438      3rd Qu.:0.49978        
+ Max.   :1.21689         Max.   :1.62969      Max.   :1.00010        
+ NA's   :86              NA's   :86           NA's   :86             
+ GSE16161_con_les_der GSE16161_con_les_pso GSE18686_con_les_pso
+ Min.   :0.0328       Min.   :0.03341      Min.   :0.03339     
+ 1st Qu.:0.2043       1st Qu.:0.20434      1st Qu.:0.20956     
+ Median :0.3329       Median :0.33327      Median :0.33319     
+ Mean   :0.3873       Mean   :0.38564      Mean   :0.38214     
+ 3rd Qu.:0.5111       3rd Qu.:0.50185      3rd Qu.:0.49735     
+ Max.   :1.0605       Max.   :1.00018      Max.   :1.05478     
+ NA's   :86           NA's   :86           NA's   :93          
+ GSE26866_con_les_pso GSE26952_con_les_der GSE26952_con_les_pso
+ Min.   :0.03393      Min.   :0.03413      Min.   :0.03417     
+ 1st Qu.:0.20485      1st Qu.:0.20819      1st Qu.:0.21364     
+ Median :0.33330      Median :0.33345      Median :0.34634     
+ Mean   :0.37837      Mean   :0.38319      Mean   :0.39319     
+ 3rd Qu.:0.49751      3rd Qu.:0.50004      3rd Qu.:0.52130     
+ Max.   :1.00000      Max.   :1.07281      Max.   :1.22850     
+ NA's   :93           NA's   :110          NA's   :110         
+ GSE2737_con_les_pso GSE2737_con_nonles_pso GSE27887_con_les_der
+ Min.   :0.03739     Min.   :0.03739        Min.   :0.03637     
+ 1st Qu.:0.22349     1st Qu.:0.22201        1st Qu.:0.21815     
+ Median :0.35533     Median :0.36844        Median :0.34868     
+ Mean   :0.40327     Mean   :0.40970        Mean   :0.39190     
+ 3rd Qu.:0.52077     3rd Qu.:0.54993        3rd Qu.:0.50206     
+ Max.   :1.00026     Max.   :1.00021        Max.   :1.03055     
+ NA's   :136         NA's   :136            NA's   :136         
+ GSE30768_con_les_pso GSE30999_con_les_pso GSE31835_con_les_pso
+ Min.   :0.03678      Min.   :0.03625      Min.   :0.03747     
+ 1st Qu.:0.22639      1st Qu.:0.22331      1st Qu.:0.22506     
+ Median :0.35380      Median :0.35109      Median :0.36108     
+ Mean   :0.40547      Mean   :0.39445      Mean   :0.40952     
+ 3rd Qu.:0.53400      3rd Qu.:0.50040      3rd Qu.:0.54961     
+ Max.   :1.00018      Max.   :1.41324      Max.   :1.01487     
+ NA's   :136          NA's   :136          NA's   :148         
+ GSE31835_con_nonles_pso GSE32407_con_nonles_pso GSE32924_con_les_der
+ Min.   :0.03746         Min.   :0.03766         Min.   :0.03713     
+ 1st Qu.:0.22411         1st Qu.:0.22500         1st Qu.:0.22445     
+ Median :0.36842         Median :0.36552         Median :0.36707     
+ Mean   :0.41154         Mean   :0.40983         Mean   :0.40554     
+ 3rd Qu.:0.55733         3rd Qu.:0.55135         3rd Qu.:0.54121     
+ Max.   :1.17050         Max.   :1.00018         Max.   :1.06762     
+ NA's   :148             NA's   :148             NA's   :148         
+ GSE32924_con_nonles_der GSE34248_con_les_pso GSE36842_con_les1_der
+ Min.   :0.03719         Min.   :0.03709      Min.   :0.03709      
+ 1st Qu.:0.22670         1st Qu.:0.22512      1st Qu.:0.22596      
+ Median :0.35696         Median :0.35496      Median :0.36725      
+ Mean   :0.40527         Mean   :0.39977      Mean   :0.40664      
+ 3rd Qu.:0.54342         3rd Qu.:0.51878      3rd Qu.:0.54793      
+ Max.   :0.99869         Max.   :1.28854      Max.   :1.00009      
+ NA's   :148             NA's   :148          NA's   :148          
+ GSE36842_con_les2_der GSE36842_con_nonles_der GSE40263_con_les_pso
+ Min.   :0.03712       Min.   :0.03713         Min.   :0.03751     
+ 1st Qu.:0.22371       1st Qu.:0.22637         1st Qu.:0.20921     
+ Median :0.36781       Median :0.36422         Median :0.33429     
+ Mean   :0.40828       Mean   :0.40631         Mean   :0.39049     
+ 3rd Qu.:0.54541       3rd Qu.:0.55428         3rd Qu.:0.50771     
+ Max.   :1.00010       Max.   :1.05211         Max.   :1.00000     
+ NA's   :148           NA's   :148             NA's   :151         
+ GSE41662_con_les_pso GSE41663_con_les_pso GSE52471_con_les_pso
+ Min.   :0.03738      Min.   :0.0374       Min.   :0.04062     
+ 1st Qu.:0.22580      1st Qu.:0.2280       1st Qu.:0.23438     
+ Median :0.35587      Median :0.3550       Median :0.37676     
+ Mean   :0.40039      Mean   :0.4020       Mean   :0.41749     
+ 3rd Qu.:0.51560      3rd Qu.:0.5224       3rd Qu.:0.56492     
+ Max.   :1.96510      Max.   :1.0001       Max.   :1.00020     
+ NA's   :151          NA's   :151          NA's   :187         
+ GSE53431_con_les_pso GSE5667.1_con_les_der GSE5667.1_con_nonles_der
+ Min.   :0.04364      Min.   :0.04406       Min.   :0.04409         
+ 1st Qu.:0.26732      1st Qu.:0.25257       1st Qu.:0.25504         
+ Median :0.40016      Median :0.39928       Median :0.40620         
+ Mean   :0.43831      Mean   :0.43459       Mean   :0.44426         
+ 3rd Qu.:0.57711      3rd Qu.:0.57671       3rd Qu.:0.57732         
+ Max.   :1.08522      Max.   :2.15681       Max.   :1.08501         
+ NA's   :219          NA's   :219           NA's   :219             
+ GSE5667.2_con_les_der GSE5667.2_con_nonles_der GSE6012_con_les_der
+ Min.   :0.0793        Min.   :0.0792           Min.   :0.0792     
+ 1st Qu.:0.3715        1st Qu.:0.3790           1st Qu.:0.3679     
+ Median :0.5003        Median :0.5235           Median :0.4996     
+ Mean   :0.5460        Mean   :0.5617           Mean   :0.5484     
+ 3rd Qu.:0.7047        3rd Qu.:0.7071           3rd Qu.:0.7074     
+ Max.   :1.2737        Max.   :1.1340           Max.   :1.0413     
+ NA's   :670           NA's   :670              NA's   :670        
+ GSE6281_con_les0_der GSE6281_con_les1_der GSE6281_con_les2_der
+ Min.   :0.0793       Min.   :0.0792       Min.   :0.0788      
+ 1st Qu.:0.3731       1st Qu.:0.3769       1st Qu.:0.3772      
+ Median :0.4979       Median :0.4998       Median :0.5001      
+ Mean   :0.5487       Mean   :0.5498       Mean   :0.5603      
+ 3rd Qu.:0.7032       3rd Qu.:0.7061       3rd Qu.:0.7102      
+ Max.   :1.0001       Max.   :1.0001       Max.   :1.0001      
+ NA's   :670          NA's   :670          NA's   :670         
+ GSE6281_con_les3_der GSE6710_con_les_pso
+ Min.   :0.0799       Min.   :0.0793     
+ 1st Qu.:0.3774       1st Qu.:0.3681     
+ Median :0.4999       Median :0.5001     
+ Mean   :0.5567       Mean   :0.5507     
+ 3rd Qu.:0.7070       3rd Qu.:0.7090     
+ Max.   :1.0001       Max.   :1.0002     
+ NA's   :670          NA's   :670        
+> 
+> 
+> ### generating matrix with all adjusted p values for all studies
+> mat.adjp <- matrix (NA, nrow = length (reactomeuniq), ncol = length (ficheros))
+> rownames (mat.adjp) <- reactomeuniq
+> colnames (mat.adjp) <- strsplit (ficheros, ".RData")
+> head (mat.adjp[, 1:5])
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683                   NA                   NA                   NA
+R-HSA-109581                    NA                   NA                   NA
+R-HSA-109582                    NA                   NA                   NA
+R-HSA-109606                    NA                   NA                   NA
+R-HSA-109688                    NA                   NA                   NA
+R-HSA-109703                    NA                   NA                   NA
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683                      NA                   NA
+R-HSA-109581                       NA                   NA
+R-HSA-109582                       NA                   NA
+R-HSA-109606                       NA                   NA
+R-HSA-109688                       NA                   NA
+R-HSA-109703                       NA                   NA
+> 
+> for (fi in ficheros){
++   load (fi)
++   co <- as.character(strsplit (fi, ".RData"))
++   adjp <- res$padj
++   names (adjp) <- (rownames (res))
++   head (adjp)
++   mat.adjp[, co] <- adjp[rownames(mat.adjp)] 
++ }
+> 
+> head (mat.adjp)
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683         1.000000e+00         1.000000e+00          1.000000000
+R-HSA-109581          8.880834e-05         6.209140e-01          0.001974536
+R-HSA-109582          1.000000e+00         6.743032e-10          1.000000000
+R-HSA-109606          4.203516e-01         1.000000e+00          0.186738879
+R-HSA-109688          1.000000e+00         1.000000e+00          1.000000000
+R-HSA-109703          1.000000e+00         1.000000e+00          0.321522770
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683                       1            1.0000000
+R-HSA-109581                        1            0.4015506
+R-HSA-109582                        1            1.0000000
+R-HSA-109606                        1            1.0000000
+R-HSA-109688                        1            1.0000000
+R-HSA-109703                        1            0.1496629
+              GSE14905_con_nonles_pso GSE16161_con_les_der GSE16161_con_les_pso
+R-HSA-1059683                1.000000                    1                    1
+R-HSA-109581                 1.000000                    1                    1
+R-HSA-109582                 1.000000                    1                    1
+R-HSA-109606                 1.000000                    1                    1
+R-HSA-109688                 0.235623                    1                    1
+R-HSA-109703                 1.000000                    1                    1
+              GSE18686_con_les_pso GSE26866_con_les_pso GSE26952_con_les_der
+R-HSA-1059683           1.00000000          1.000000000          1.000000000
+R-HSA-109581            0.09037454          0.002838574          0.006264002
+R-HSA-109582            1.00000000          0.047787308          1.000000000
+R-HSA-109606            1.00000000          0.724805375          1.000000000
+R-HSA-109688            1.00000000          0.563171589          1.000000000
+R-HSA-109703            1.00000000          1.000000000          1.000000000
+              GSE26952_con_les_pso GSE2737_con_les_pso GSE2737_con_nonles_pso
+R-HSA-1059683                    1        7.210760e-01                      1
+R-HSA-109581                     1        2.401187e-05                      1
+R-HSA-109582                     1        1.000000e+00                      1
+R-HSA-109606                     1        2.937888e-02                      1
+R-HSA-109688                     1        9.633044e-01                      1
+R-HSA-109703                     1        1.000000e+00                      1
+              GSE27887_con_les_der GSE30768_con_les_pso GSE30999_con_les_pso
+R-HSA-1059683           1.00000000         1.000000e+00          1.000000000
+R-HSA-109581            0.04462148         1.196073e-05          0.001794829
+R-HSA-109582            0.03243023         1.000000e+00          1.000000000
+R-HSA-109606            1.00000000         2.430674e-01          0.235993866
+R-HSA-109688            1.00000000         2.976242e-01          0.560133851
+R-HSA-109703            0.33294607         1.000000e+00          1.000000000
+              GSE31835_con_les_pso GSE31835_con_nonles_pso
+R-HSA-1059683                    1                       1
+R-HSA-109581                     1                       1
+R-HSA-109582                     1                       1
+R-HSA-109606                     1                       1
+R-HSA-109688                     1                       1
+R-HSA-109703                     1                       1
+              GSE32407_con_nonles_pso GSE32924_con_les_der
+R-HSA-1059683               1.0000000                    1
+R-HSA-109581                0.1930083                    1
+R-HSA-109582                1.0000000                    1
+R-HSA-109606                0.6017994                    1
+R-HSA-109688                0.6319875                    1
+R-HSA-109703                1.0000000                    1
+              GSE32924_con_nonles_der GSE34248_con_les_pso
+R-HSA-1059683              1.00000000         7.342848e-01
+R-HSA-109581               0.42640810         5.773338e-06
+R-HSA-109582               0.04107698         1.000000e+00
+R-HSA-109606               1.00000000         5.113666e-02
+R-HSA-109688               0.96562404         2.111695e-03
+R-HSA-109703               1.00000000         1.000000e+00
+              GSE36842_con_les1_der GSE36842_con_les2_der
+R-HSA-1059683             1.0000000                     1
+R-HSA-109581              0.6558185                     1
+R-HSA-109582              1.0000000                     1
+R-HSA-109606              1.0000000                     1
+R-HSA-109688              1.0000000                     1
+R-HSA-109703              1.0000000                     1
+              GSE36842_con_nonles_der GSE40263_con_les_pso GSE41662_con_les_pso
+R-HSA-1059683            1.0000000000         3.209752e-02         1.000000e+00
+R-HSA-109581             0.0007611646         5.051075e-12         1.923814e-05
+R-HSA-109582             0.0202620255         1.434610e-09         1.000000e+00
+R-HSA-109606             1.0000000000         2.101265e-07         1.409137e-01
+R-HSA-109688             1.0000000000         2.499011e-06         1.643911e-02
+R-HSA-109703             1.0000000000         2.707246e-03         1.000000e+00
+              GSE41663_con_les_pso GSE52471_con_les_pso GSE53431_con_les_pso
+R-HSA-1059683         4.763857e-02          1.000000000         1.0000000000
+R-HSA-109581          3.564481e-06          0.001668934         0.0006463827
+R-HSA-109582          1.000000e+00          1.000000000         1.0000000000
+R-HSA-109606          5.826241e-02          0.668990818         0.2546613732
+R-HSA-109688          3.133830e-02          1.000000000         1.0000000000
+R-HSA-109703          1.000000e+00          1.000000000         1.0000000000
+              GSE5667.1_con_les_der GSE5667.1_con_nonles_der
+R-HSA-1059683             1.0000000                1.0000000
+R-HSA-109581              0.1264938                0.9424231
+R-HSA-109582              0.2291097                1.0000000
+R-HSA-109606              1.0000000                1.0000000
+R-HSA-109688              1.0000000                1.0000000
+R-HSA-109703              1.0000000                1.0000000
+              GSE5667.2_con_les_der GSE5667.2_con_nonles_der
+R-HSA-1059683            0.09652044                        1
+R-HSA-109581             1.00000000                        1
+R-HSA-109582             1.00000000                        1
+R-HSA-109606             1.00000000                        1
+R-HSA-109688             1.00000000                        1
+R-HSA-109703             1.00000000                        1
+              GSE6012_con_les_der GSE6281_con_les0_der GSE6281_con_les1_der
+R-HSA-1059683           1.0000000           1.00000000           1.00000000
+R-HSA-109581            1.0000000           1.00000000           1.00000000
+R-HSA-109582            1.0000000           0.05527893           0.23723115
+R-HSA-109606            1.0000000           1.00000000           1.00000000
+R-HSA-109688            0.4116575           1.00000000           1.00000000
+R-HSA-109703            1.0000000           1.00000000           0.00101287
+              GSE6281_con_les2_der GSE6281_con_les3_der GSE6710_con_les_pso
+R-HSA-1059683            1.0000000                    1           1.0000000
+R-HSA-109581             1.0000000                    1           1.0000000
+R-HSA-109582             1.0000000                    1           1.0000000
+R-HSA-109606             1.0000000                    1           1.0000000
+R-HSA-109688             1.0000000                    1           0.1135597
+R-HSA-109703             0.5195015                    1           1.0000000
+> table (is.na(mat.adjp))
+
+FALSE  TRUE 
+63590  9677 
+> dim (mat.adjp)
+[1] 1787   41
+> table(mat.adjp < 0.05)
+
+FALSE  TRUE 
+58700  4890 
+> 
+> mat.adj2 <- (mat.adjp < 0.05)
+> head(mat.adj2)
+              GSE11903_con_les_pso GSE12511_con_les_der GSE13355_con_les_pso
+R-HSA-1059683                FALSE                FALSE                FALSE
+R-HSA-109581                  TRUE                FALSE                 TRUE
+R-HSA-109582                 FALSE                 TRUE                FALSE
+R-HSA-109606                 FALSE                FALSE                FALSE
+R-HSA-109688                 FALSE                FALSE                FALSE
+R-HSA-109703                 FALSE                FALSE                FALSE
+              GSE13355_con_nonles_pso GSE14905_con_les_pso
+R-HSA-1059683                   FALSE                FALSE
+R-HSA-109581                    FALSE                FALSE
+R-HSA-109582                    FALSE                FALSE
+R-HSA-109606                    FALSE                FALSE
+R-HSA-109688                    FALSE                FALSE
+R-HSA-109703                    FALSE                FALSE
+              GSE14905_con_nonles_pso GSE16161_con_les_der GSE16161_con_les_pso
+R-HSA-1059683                   FALSE                FALSE                FALSE
+R-HSA-109581                    FALSE                FALSE                FALSE
+R-HSA-109582                    FALSE                FALSE                FALSE
+R-HSA-109606                    FALSE                FALSE                FALSE
+R-HSA-109688                    FALSE                FALSE                FALSE
+R-HSA-109703                    FALSE                FALSE                FALSE
+              GSE18686_con_les_pso GSE26866_con_les_pso GSE26952_con_les_der
+R-HSA-1059683                FALSE                FALSE                FALSE
+R-HSA-109581                 FALSE                 TRUE                 TRUE
+R-HSA-109582                 FALSE                 TRUE                FALSE
+R-HSA-109606                 FALSE                FALSE                FALSE
+R-HSA-109688                 FALSE                FALSE                FALSE
+R-HSA-109703                 FALSE                FALSE                FALSE
+              GSE26952_con_les_pso GSE2737_con_les_pso GSE2737_con_nonles_pso
+R-HSA-1059683                FALSE               FALSE                  FALSE
+R-HSA-109581                 FALSE                TRUE                  FALSE
+R-HSA-109582                 FALSE               FALSE                  FALSE
+R-HSA-109606                 FALSE                TRUE                  FALSE
+R-HSA-109688                 FALSE               FALSE                  FALSE
+R-HSA-109703                 FALSE               FALSE                  FALSE
+              GSE27887_con_les_der GSE30768_con_les_pso GSE30999_con_les_pso
+R-HSA-1059683                FALSE                FALSE                FALSE
+R-HSA-109581                  TRUE                 TRUE                 TRUE
+R-HSA-109582                  TRUE                FALSE                FALSE
+R-HSA-109606                 FALSE                FALSE                FALSE
+R-HSA-109688                 FALSE                FALSE                FALSE
+R-HSA-109703                 FALSE                FALSE                FALSE
+              GSE31835_con_les_pso GSE31835_con_nonles_pso
+R-HSA-1059683                FALSE                   FALSE
+R-HSA-109581                 FALSE                   FALSE
+R-HSA-109582                 FALSE                   FALSE
+R-HSA-109606                 FALSE                   FALSE
+R-HSA-109688                 FALSE                   FALSE
+R-HSA-109703                 FALSE                   FALSE
+              GSE32407_con_nonles_pso GSE32924_con_les_der
+R-HSA-1059683                   FALSE                FALSE
+R-HSA-109581                    FALSE                FALSE
+R-HSA-109582                    FALSE                FALSE
+R-HSA-109606                    FALSE                FALSE
+R-HSA-109688                    FALSE                FALSE
+R-HSA-109703                    FALSE                FALSE
+              GSE32924_con_nonles_der GSE34248_con_les_pso
+R-HSA-1059683                   FALSE                FALSE
+R-HSA-109581                    FALSE                 TRUE
+R-HSA-109582                     TRUE                FALSE
+R-HSA-109606                    FALSE                FALSE
+R-HSA-109688                    FALSE                 TRUE
+R-HSA-109703                    FALSE                FALSE
+              GSE36842_con_les1_der GSE36842_con_les2_der
+R-HSA-1059683                 FALSE                 FALSE
+R-HSA-109581                  FALSE                 FALSE
+R-HSA-109582                  FALSE                 FALSE
+R-HSA-109606                  FALSE                 FALSE
+R-HSA-109688                  FALSE                 FALSE
+R-HSA-109703                  FALSE                 FALSE
+              GSE36842_con_nonles_der GSE40263_con_les_pso GSE41662_con_les_pso
+R-HSA-1059683                   FALSE                 TRUE                FALSE
+R-HSA-109581                     TRUE                 TRUE                 TRUE
+R-HSA-109582                     TRUE                 TRUE                FALSE
+R-HSA-109606                    FALSE                 TRUE                FALSE
+R-HSA-109688                    FALSE                 TRUE                 TRUE
+R-HSA-109703                    FALSE                 TRUE                FALSE
+              GSE41663_con_les_pso GSE52471_con_les_pso GSE53431_con_les_pso
+R-HSA-1059683                 TRUE                FALSE                FALSE
+R-HSA-109581                  TRUE                 TRUE                 TRUE
+R-HSA-109582                 FALSE                FALSE                FALSE
+R-HSA-109606                 FALSE                FALSE                FALSE
+R-HSA-109688                  TRUE                FALSE                FALSE
+R-HSA-109703                 FALSE                FALSE                FALSE
+              GSE5667.1_con_les_der GSE5667.1_con_nonles_der
+R-HSA-1059683                 FALSE                    FALSE
+R-HSA-109581                  FALSE                    FALSE
+R-HSA-109582                  FALSE                    FALSE
+R-HSA-109606                  FALSE                    FALSE
+R-HSA-109688                  FALSE                    FALSE
+R-HSA-109703                  FALSE                    FALSE
+              GSE5667.2_con_les_der GSE5667.2_con_nonles_der
+R-HSA-1059683                 FALSE                    FALSE
+R-HSA-109581                  FALSE                    FALSE
+R-HSA-109582                  FALSE                    FALSE
+R-HSA-109606                  FALSE                    FALSE
+R-HSA-109688                  FALSE                    FALSE
+R-HSA-109703                  FALSE                    FALSE
+              GSE6012_con_les_der GSE6281_con_les0_der GSE6281_con_les1_der
+R-HSA-1059683               FALSE                FALSE                FALSE
+R-HSA-109581                FALSE                FALSE                FALSE
+R-HSA-109582                FALSE                FALSE                FALSE
+R-HSA-109606                FALSE                FALSE                FALSE
+R-HSA-109688                FALSE                FALSE                FALSE
+R-HSA-109703                FALSE                FALSE                 TRUE
+              GSE6281_con_les2_der GSE6281_con_les3_der GSE6710_con_les_pso
+R-HSA-1059683                FALSE                FALSE               FALSE
+R-HSA-109581                 FALSE                FALSE               FALSE
+R-HSA-109582                 FALSE                FALSE               FALSE
+R-HSA-109606                 FALSE                FALSE               FALSE
+R-HSA-109688                 FALSE                FALSE               FALSE
+R-HSA-109703                 FALSE                FALSE               FALSE
+> total <- apply(mat.adj2, 1, sum)
+> head(total)
+R-HSA-1059683  R-HSA-109581  R-HSA-109582  R-HSA-109606  R-HSA-109688 
+            2            15             6             2             4 
+ R-HSA-109703 
+            2 
+> summary(total)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+  0.000   1.000   2.000   3.489   4.000  23.000     670 
+> table(total)
+total
+  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19 
+232 287 181  90  69  43  33  23  17  14  11   8  12   7  13  34  22  10   3   2 
+ 20  21  22  23 
+  2   2   1   1 
+> 
+> 
+> 
+> 
+> 
+> 
+> # STEP 2. Meta-analysis for functional terms
+> #################################################################
+> 
+> #In general, we suppose between-study variance is non-zero.
+> #there are different methods to estimate this variance:
+> #DL (Dersimonian-Laird), REML (Restricted maximum-likelihood, default)....
+> #result.lor <- rma(yi = mat.lor[1, ], vi = mat.sd[1, ], method = "DL") 
+> # DerSimonian-Laird. Y -> log(OR) V -> var(log(OR)
+> 
+> #We also evaluate Fixed Effects (FE)
+> 
+> 
+> # explore the function to do the meta-analysis
+> #?rma
+> 
+> # parameters to select
+> # methods = c("DL", "HE", "HS", "SJ", "ML", "REML", "EB", "PM", "FE")  #methods for meta-analysis
+> methods = c("DL", "HE", "HS", "SJ",                 "FE")  #methods for meta-analysis
+> 
+> corte = 0.05  #threshold to detect significant results
+> or    = 0.5   #threshold to detect OR 
+> adj.p.value = "fdr"  # method to adjust p-values
+> 
+> # preparing a matrix for results
+> res <- matrix (NA, nrow = length (methods), ncol = 6)
+> colnames(res) <- c("over", "under", "sig.over", "sig.under", "sig.or.over", "sig.or.under")
+> rownames(res) <- methods
+> res
+   over under sig.over sig.under sig.or.over sig.or.under
+DL   NA    NA       NA        NA          NA           NA
+HE   NA    NA       NA        NA          NA           NA
+HS   NA    NA       NA        NA          NA           NA
+SJ   NA    NA       NA        NA          NA           NA
+FE   NA    NA       NA        NA          NA           NA
+> # important: we have to indicate our variability measure is standard deviance and not variance
+> # from "sei" (by defalt is "vi"):
+> 
+> # meta-analysis
+> for (i in methods){
++   meta_analisis <- lapply(1:length(rownames(mat.lor)),
++                           function(x){yi = rma(mat.lor[x, ], sei =mat.sd[x, ],
++                                           method = i)})
++   # sometimes for   methods there are converge problems: I have to increase the number of iter
++   #(http://www.metafor-project.org/doku.php/tips:convergence_problems_rma)
++   #   length(meta_analisis)
++   #   meta_analisis[[1]]
++   names (meta_analisis) <- rownames(mat.lor)
++   result_meta <- as.data.frame(do.call("rbind", lapply(meta_analisis,function(x)
++     {c(x$ci.lb, x$b, x$ci.ub, x$pval, x$QE, x$QEp, x$se, x$tau2, x$I2, x$H2) })))
++   colnames(result_meta) <- c("lower_bound", "summary_LOR", "upper_bound", "pvalue", 
++                              "QE", "QEp", "SE", "tau2", "I2", "H2")
++   p.adjust <- p.adjust(result_meta[, 4], method= adj.p.value)  
++   result_meta <- round(cbind (result_meta, p.adjust),5)
++   
++   if (file.exists(file.path (.job$dir$code, "results",  "reactome", "files"))){
++     setwd(file.path(.job$dir$code, "results",  "reactome", "files"))
++   } else {
++     dir.create(file.path(.job$dir$code, "results",  "reactome", "files"), recursive = T)
++     setwd(file.path(.job$dir$code, "results",  "reactome", "files"))    
++   }
++   #save  (list = c("meta_analisis", "result_meta"), file = sprintf("meta_result_%s.RData", i))
++   
++   res[i, "over"]      <-  sum(result_meta[, "summary_LOR"] > 0)
++   res[i, "under"]    <-  sum(result_meta[, "summary_LOR"] < 0)
++   res[i,"sig.over"]   <-  sum(result_meta[, "summary_LOR"] > 0 & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.under"] <-  sum(result_meta[, "summary_LOR"] < 0 & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.or.over"]   <-  sum(result_meta[, "summary_LOR"] >  or & result_meta[,"p.adjust"] < corte)
++   res[i,"sig.or.under"] <-  sum(result_meta[, "summary_LOR"] < -or & result_meta[,"p.adjust"] < corte)
++   
++ 
++   # Getting common IDs for all models 
++   if (i == "DL"){
++     DL <- result_meta    
++     DL[, "ID"]   <- rownames(DL)
++     DL <- DL[c("ID", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust", "QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(DL, "all.results.DL.txt", sep = "\t", quote = F, row.names = F)
++     DLs = subset(DL, DL[,"p.adjust"] < corte)
++     write.table(DLs, "sig.results.DL.txt", sep = "\t", quote = F, row.names = F)
++     idDL = rownames(DLs)
++    #these lines, only for DL to include in final report
++     DLs_or = DLs[abs(DLs$summary_LOR) > or,]
++     write.table(DLs_or, "sig.or.results.DL.txt", sep = "\t", quote = F, row.names = F)
++   
++   }
++   if (i == "HE"){
++     HE <- result_meta    
++     HE[, "ID"]   <- rownames(HE)
++     HE <- HE[c("ID", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(HE, "all.results.HE.txt", sep = "\t", quote = F, row.names = F)
++     HEs = subset(HE, HE[,"p.adjust"] < corte)
++     write.table(HEs, "sig.results.HE.txt", sep = "\t", quote = F, row.names = F)
++     idHE = rownames(HEs)
++   }
++   if (i == "HS"){
++     HS <- result_meta
++     HS[, "ID"]   <- rownames(HS)
++     HS <- HS[c("ID",  "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(HS, "all.results.HS.txt", sep = "\t", quote = F, row.names = F)
++     HSs = subset(HS, HS[,"p.adjust"] < corte)
++     write.table(HSs, "sig.results.HS.txt", sep = "\t", quote = F, row.names = F)
++     idHS = rownames(HSs)
++   }
++   if (i == "SJ"){
++     SJ <- result_meta
++     SJ[, "ID"]   <- rownames(SJ)
++     SJ <- SJ[c("ID", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(SJ, "all.results.SJ.txt", sep = "\t", quote = F, row.names = F)
++     SJs = subset(SJ, SJ[,"p.adjust"] < corte)
++     write.table(SJs, "sig.results.SJ.txt", sep = "\t", quote = F, row.names = F)
++     idSJ = rownames(SJs)
++   }
++ #   if (i == "ML"){
++ #     ML <- result_meta
++ #     ML[,"name"] <- getKEGGnames(substr(rownames(ML),4,8))
++ #     ML[, "ID"]   <- rownames(ML)
++ #     ML <- ML[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(ML, "all.results.ML.txt", sep = "\t", quote = F, row.names = F)
++ #     MLs = subset(ML, ML[,"p.adjust"] < corte)
++ #     write.table(MLs, "sig.results.ML.txt", sep = "\t", quote = F, row.names = F)
++ #     idML = rownames(MLs)
++ #   }
++ #   if (i == "REML"){
++ #     REML <- result_meta
++ #     REML[,"name"] <- getKEGGnames(substr(rownames(REML),4,8))
++ #     REML[, "ID"]   <- rownames(REML)
++ #     REML <- REML[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                    "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(REML, "all.results.REML.txt", sep = "\t", quote = F, row.names = F)
++ #     REMLs = subset(REML, REML[,"p.adjust"] < corte)
++ #     write.table(REMLs, "sig.results.REML.txt", sep = "\t", quote = F, row.names = F)
++ #     idREML = rownames(REMLs)
++ #   }
++ #   if (i == "EB"){
++ #     EB <- result_meta
++ #     EB[,"name"] <- getKEGGnames(substr(rownames(EB),4,8))
++ #     EB[, "ID"]   <- rownames(EB)
++ #     EB <- EB[c("ID", "name", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++ #                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++ #     write.table(EB, "all.results.EB.txt", sep = "\t", quote = F, row.names = F)
++ #     EBs = subset(EB, EB[,"p.adjust"] < corte)
++ #     write.table(EBs, "sig.results.EB.txt", sep = "\t", quote = F, row.names = F)
++ #     idEB = rownames(EBs)
++ #   }
++   if (i == "FE"){
++     FE <- result_meta
++     FE[, "ID"]   <- rownames(FE)
++     FE <- FE[c("ID", "lower_bound", "summary_LOR", "upper_bound", "pvalue",
++                "p.adjust","QE", "QEp", "SE", "tau2", "I2", "H2" )]
++     write.table(FE, "all.results.FE.txt", sep = "\t", quote = F, row.names = F)
++     FEs = subset(FE, FE[,"p.adjust"] < corte)
++     write.table(FEs, "sig.results.FE.txt", sep = "\t", quote = F, row.names = F)
++     idFE = rownames(FEs)
++   }
++ }
+There were 50 or more warnings (use warnings() to see the first 50)
+> 
+> 
+> 
+> ##GLOBAL RESULTS
+> setwd (file.path (.job$dir$code, "results","reactome","files"))
+> 
+> 
+> # A. All results for different models
+> print(res)
+   over under sig.over sig.under sig.or.over sig.or.under
+DL  963   824      425       379         103           83
+HE  966   821      511       425         136          104
+HS  964   823      443       383         111           87
+SJ  956   831      409       358         115           90
+FE  995   792      679       508         189          142
+> cat ("method\t", file = "res_all.txt")
+> write.table (res, file = "res_all.txt",
++              append = TRUE, quote = FALSE, sep = "\t", 
++              row.names = TRUE, col.names = TRUE)
+Warning message:
+In write.table(res, file = "res_all.txt", append = TRUE, quote = FALSE,  :
+  appending column names to file
+> 
+> 
+> # B. Intersection
+> # intersectmodels = Reduce(intersect, list(idDL, idHE, idHS, idSJ, idML, idREML, idEB, idPM, idFE))
+>  intersectmodels =  Reduce(intersect,  list(idDL, idHE, idHS, idSJ,                  idFE))
+> length(intersectmodels)
+[1] 718
+> write.table (intersectmodels, file = "res_intersection.txt",
++              quote = FALSE, sep = "\t", row.names = F, col.names = F)
+> # # to print in a file:
+> # cat(intersectmodels, file = "intersection_models.txt", sep = "\n", append = TRUE) 
+> # cat("\nList of identifiers generated from the intersection of  generated models.")
+> 
+> 
+> 
+> # C. Union
+> #unionmodels = Reduce(c, list(idDL, idHE, idHS, idSJ, idML, idREML, idEB, idPM, idFE))
+>  unionmodels = Reduce(c, list(idDL, idHE, idHS, idSJ,                idFE))
+> 
+> mat.union <- as.data.frame(table(unionmodels))
+> dim(mat.union)
+[1] 1188    2
+> mat.union <- mat.union[order(mat.union$Freq, decreasing = T),]
+> cat ("ID\tFreq\n", file = "res_union.txt")
+> write.table (mat.union, file = "res_union.txt",append = TRUE,
++              quote = FALSE, sep = "\t", row.names = F, col.names = F)
+> 
+> 
+> 
+> 
+> # STEP 3. GRAPHICAL REPRESENTATION
+> #################################################################
+> 
+> if (file.exists(file.path (.job$dir$code, "results",  "reactome",  "plots"))){
++   setwd(file.path(.job$dir$code, "results",  "reactome",  "plots"))
++ } else {
++   dir.create(file.path(.job$dir$code, "results",  "reactome",  "plots"), recursive = T)
++   setwd(file.path(.job$dir$code, "results",  "reactome",  "plots"))    
++ }
+> 
+> 
+> 
+> 
+> ## 3.1. plot to evaluate heterogeneity for all models 
+> ######################################################
+> 
+> # methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
+> #             rep("ML", nrow(ML)),rep("REML", nrow(REML)),rep("EB", nrow(EB)),
+> #             rep("PM", nrow(PM)),rep("FE", nrow(FE)))
+> methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
++                                                     rep("FE", nrow(FE)) )
+> # QEp   <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp, ML$QEp, REML$QEp, EB$QEp, PM$QEp, FE$QEp)
+> QEp      <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp,                     FE$QEp)
+> SE       <- c(DL$SE, HE$SE, HS$SE, SJ$SE,                     FE$SE)
+> I2       <- c(DL$I2, HE$I2, HS$I2, SJ$I2,                     FE$I2)
+> H2       <- c(DL$H2, HE$H2, HS$H2, SJ$H2,                     FE$H2)
+> tau2     <- c(DL$tau2, HE$tau2, HS$tau2, SJ$tau2,                    FE$tau2)
+> 
+> datos <- data.frame (cbind(as.factor(methods), QEp, SE, I2, H2, tau2))
+> head(datos)
+  V1     QEp      SE       I2      H2    tau2
+1  1 0.00326 0.08106 41.68020 1.71468 0.10892
+2  1 0.00000 0.06008 88.83500 8.95656 0.12755
+3  1 0.00000 0.02634 82.78575 5.80914 0.02224
+4  1 0.00000 0.07360 73.52611 3.77731 0.15480
+5  1 0.00000 0.08028 73.96877 3.84154 0.18818
+6  1 0.00007 0.06227 51.90567 2.07925 0.07825
+> dim(datos)
+[1] 8935    6
+> summary(datos)
+       V1         QEp               SE                 I2       
+ Min.   :1   Min.   :0.0000   Min.   : 0.00609   Min.   : 0.00  
+ 1st Qu.:2   1st Qu.:0.0000   1st Qu.: 0.05745   1st Qu.: 0.00  
+ Median :3   Median :0.0001   Median : 0.08488   Median :41.77  
+ Mean   :3   Mean   :0.1764   Mean   : 0.13419   Mean   :38.95  
+ 3rd Qu.:4   3rd Qu.:0.1871   3rd Qu.: 0.12689   3rd Qu.:68.03  
+ Max.   :5   Max.   :1.0000   Max.   :10.51334   Max.   :99.99  
+                                                 NA's   :430    
+       H2                 tau2         
+ Min.   :    1.000   Min.   :   0.000  
+ 1st Qu.:    1.000   1st Qu.:   0.000  
+ Median :    1.717   Median :   0.057  
+ Mean   :    4.651   Mean   :   0.783  
+ 3rd Qu.:    3.128   3rd Qu.:   0.212  
+ Max.   :11189.797   Max.   :3646.777  
+ NA's   :430                           
+> param <- c("QEp", "SE", "I2", "H2", "tau2")
+> x.por <- 3
+> y.por <- 2
+> 
+> 
+> # We drawn separately QEp because we need abline for 0.05
+> jpeg (filename = "KEGG_het_QEp.jpeg",  
++       width = 480 *x.por ,   height = 480*y.por,
++       pointsize = 150, quality = 100) 
+> p <- ggplot(datos, aes(methods, datos[, "QEp"]))
+> p <- p + geom_boxplot(col = "blue")
+> p <- p + xlab("Métodos") 
+> p <- p + ylab("QEp")
+> p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
+> p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
+> p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + geom_hline(yintercept = 0.05, col = "red")
+> print(p)
+> dev.off ()
+null device 
+          1 
+> 
+> #Now the rest:
+> for (i in 2:length(param)){
++   jpeg (filename = paste("KEGG_het_", param[i], ".jpeg", sep = ""),  
++         width = 480 *x.por ,   height = 480*y.por,
++         pointsize = 150, quality = 100) 
++   p <- ggplot(datos, aes(methods, datos[, param[i]]))
++   p <- p + geom_boxplot(col = "blue")
++   p <- p + xlab("Métodos") 
++   p <- p + ylab(param[i])
++   p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
++   p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
++   p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
++   p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
++ #   p <- p + geom_hline(yintercept = 0.05, col = "red")
++   print(p)
++   dev.off ()
++ }
+Warning messages:
+1: Removed 430 rows containing non-finite values (stat_boxplot). 
+2: Removed 430 rows containing non-finite values (stat_boxplot). 
+> 
+> 
+> 
+> 
+> 
+> ## 3.2. plots to explore OUTPUT data: LOR vs. FDR (volcano plot) 
+> ######################################################
+> 
+> # This plot shows final results for each method
+> # We want to know the relationship between combined LOR and its SE
+> 
+> # Select results for a specific method:
+> res.method = DL #  results from Dersimonian-Laird method
+> 
+> summary(res.method[, "summary_LOR"])
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+-2.33900 -0.15390  0.02747  0.03277  0.22340  1.95200 
+> summary(res.method[, "p.adjust"])
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+0.000000 0.002255 0.094030 0.268100 0.535700 0.999300 
+> log10 <- -log(res.method[, "p.adjust"], base = 10)
+> summary(log10)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.0003215 0.2711000 1.0270000       Inf 2.6470000       Inf 
+> corte.logfdr <- 3
+> table(log10 > 3)
+
+FALSE  TRUE 
+ 1441   346 
+> head(res.method)
+                         ID lower_bound summary_LOR upper_bound  pvalue
+R-HSA-1059683 R-HSA-1059683     0.16128     0.32016     0.47904 0.00008
+R-HSA-109581   R-HSA-109581     0.07643     0.19419     0.31195 0.00123
+R-HSA-109582   R-HSA-109582    -0.06725    -0.01562     0.03602 0.55333
+R-HSA-109606   R-HSA-109606     0.08670     0.23095     0.37519 0.00170
+R-HSA-109688   R-HSA-109688     0.01837     0.17572     0.33308 0.02862
+R-HSA-109703   R-HSA-109703    -0.34272    -0.22067    -0.09863 0.00039
+              p.adjust        QE     QEp      SE    tau2       I2      H2
+R-HSA-1059683  0.00047  68.58734 0.00326 0.08106 0.10892 41.68020 1.71468
+R-HSA-109581   0.00428 358.26255 0.00000 0.06008 0.12755 88.83500 8.95656
+R-HSA-109582   0.67219 232.36568 0.00000 0.02634 0.02224 82.78575 5.80914
+R-HSA-109606   0.00559 151.09225 0.00000 0.07360 0.15480 73.52611 3.77731
+R-HSA-109688   0.06176 153.66158 0.00000 0.08028 0.18818 73.96877 3.84154
+R-HSA-109703   0.00171  83.16988 0.00007 0.06227 0.07825 51.90567 2.07925
+> 
+> #I assign colors but the plot show other colors by default. I have to adjust it!
+> 
+> res.method$threshold = rep("white", nrow(res.method))
+> sig.up   <- (res.method[, "p.adjust"] < 0.05) & (res.method[, "summary_LOR"] > 0)
+> sig.down <- (res.method[, "p.adjust"] < 0.05) & (res.method[, "summary_LOR"] < 0)
+> 
+> res.method$threshold [sig.up]    <- "blue"
+> res.method$threshold [sig.down]  <- "red"
+> table(res.method$threshold)
+
+ blue   red white 
+  425   379   983 
+> res.method2 <- res.method[log10 < corte.logfdr,]
+> table(res.method2$threshold)
+
+ blue   red white 
+  264   194   983 
+> 
+> dim(res.method2)
+[1] 1441   13
+> res.method$threshold <- as.factor(res.method$threshold)
+> 
+> ##Construct the plot object
+> x.por <- 3
+> y.por <- 3
+> jpeg (filename = "volcano_reactome.jpeg",  width = 480 *x.por ,   height = 480*y.por, pointsize = 100, quality = 100) 
+> g <- ggplot(data=res.method2, aes(x=summary_LOR, y=-log10(p.adjust), colour= threshold)) #generate data
+> g <- g + geom_point(alpha=0.8, size=4) 
+> g <- g + xlim(c(-0.51, 0.51)) + ylim(c(0, 3.1))
+> g <- g + xlab("log2 Odds Ratio") 
+> g <- g + theme(axis.title.x= element_text(colour= "black", size = 35 )) #to change size of title in axis x
+> g <- g + ylab("-log10 FDR") 
+> g <- g + theme(axis.title.y= element_text(colour= "black", size = 35 )) #to change size of title in axis y
+> g <- g + labs(title = "Volcano plot")
+> g <- g + theme(title= element_text(colour= "black", size = 35 )) #to change size of title 
+> g <- g + theme(axis.text.x = element_text(colour= "black", size = 35 )) #to change size of numbers
+> g <- g + theme(axis.text.y = element_text(colour= "black", size = 35 )) #to change size of numbers
+> g <- g + geom_vline(xintercept= c(0), colour = "black", size = 0.5)
+> g <- g + geom_hline(yintercept= -log(0.05, base= 10), colour = "black", size = 0.5)
+> g <- g + theme(legend.position = "none") 
+> print(g)
+Warning message:
+Removed 124 rows containing missing values (geom_point). 
+> dev.off ()
+null device 
+          1 
+> 
+> 
+> ## 3.3. plot to evaluate heterogeneity for all models 
+> ######################################################
+> 
+> # methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
+> #             rep("ML", nrow(ML)),rep("REML", nrow(REML)),rep("EB", nrow(EB)),
+> #             rep("PM", nrow(PM)),rep("FE", nrow(FE)))
+> methods<-  c(rep("DL", nrow(DL)),rep("HE", nrow(HE)),rep("HS", nrow(HS)),rep("SJ", nrow(SJ)), 
++              rep("FE", nrow(FE)) )
+> # QEp   <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp, ML$QEp, REML$QEp, EB$QEp, PM$QEp, FE$QEp)
+> QEp      <- c(DL$QEp, HE$QEp, HS$QEp, SJ$QEp,                    FE$QEp)
+> SE       <- c(DL$SE, HE$SE, HS$SE, SJ$SE,                     FE$SE)
+> I2       <- c(DL$I2, HE$I2, HS$I2, SJ$I2,                     FE$I2)
+> H2       <- c(DL$H2, HE$H2, HS$H2, SJ$H2,                     FE$H2)
+> tau2     <- c(DL$tau2, HE$tau2, HS$tau2, SJ$tau2,                   FE$tau2)
+> 
+> datos <- data.frame (cbind(as.factor(methods), QEp, SE, I2, H2, tau2))
+> head(datos)
+  V1     QEp      SE       I2      H2    tau2
+1  1 0.00326 0.08106 41.68020 1.71468 0.10892
+2  1 0.00000 0.06008 88.83500 8.95656 0.12755
+3  1 0.00000 0.02634 82.78575 5.80914 0.02224
+4  1 0.00000 0.07360 73.52611 3.77731 0.15480
+5  1 0.00000 0.08028 73.96877 3.84154 0.18818
+6  1 0.00007 0.06227 51.90567 2.07925 0.07825
+> dim(datos)
+[1] 8935    6
+> summary(datos)
+       V1         QEp               SE                 I2       
+ Min.   :1   Min.   :0.0000   Min.   : 0.00609   Min.   : 0.00  
+ 1st Qu.:2   1st Qu.:0.0000   1st Qu.: 0.05745   1st Qu.: 0.00  
+ Median :3   Median :0.0001   Median : 0.08488   Median :41.77  
+ Mean   :3   Mean   :0.1764   Mean   : 0.13419   Mean   :38.95  
+ 3rd Qu.:4   3rd Qu.:0.1871   3rd Qu.: 0.12689   3rd Qu.:68.03  
+ Max.   :5   Max.   :1.0000   Max.   :10.51334   Max.   :99.99  
+                                                 NA's   :430    
+       H2                 tau2         
+ Min.   :    1.000   Min.   :   0.000  
+ 1st Qu.:    1.000   1st Qu.:   0.000  
+ Median :    1.717   Median :   0.057  
+ Mean   :    4.651   Mean   :   0.783  
+ 3rd Qu.:    3.128   3rd Qu.:   0.212  
+ Max.   :11189.797   Max.   :3646.777  
+ NA's   :430                           
+> param <- c("QEp", "SE", "I2", "H2", "tau2")
+> x.por <- 3
+> y.por <- 2
+> 
+> 
+> # We drawn separately QEp because we need abline for 0.05
+> jpeg (filename = "reactome_het_QEp.jpeg",  
++       width = 480 *x.por ,   height = 480*y.por,
++       pointsize = 150, quality = 100) 
+> p <- ggplot(datos, aes(methods, datos[, "QEp"]))
+> p <- p + geom_boxplot(col = "blue")
+> p <- p + xlab("Métodos") 
+> p <- p + ylab("QEp")
+> p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
+> p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
+> p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
+> p <- p + geom_hline(yintercept = 0.05, col = "red")
+> print(p)
+> dev.off ()
+null device 
+          1 
+> 
+> #Now the rest:
+> for (i in 2:length(param)){
++   jpeg (filename = paste("reactome_het_", param[i], ".jpeg", sep = ""),  
++         width = 480 *x.por ,   height = 480*y.por,
++         pointsize = 150, quality = 100) 
++   p <- ggplot(datos, aes(methods, datos[, param[i]]))
++   p <- p + geom_boxplot(col = "blue")
++   p <- p + xlab("Métodos") 
++   p <- p + ylab(param[i])
++   p <- p + theme(axis.title.x= element_text(colour= "black", size = 40 )) #to change size of title in axis x
++   p <- p + theme(axis.title.y= element_text(colour= "black", size = 40 )) #to change size of title in axis y
++   p <- p + theme(axis.text.x = element_text(colour= "black", size = 30 )) #to change size of numbers
++   p <- p + theme(axis.text.y = element_text(colour= "black", size = 30 )) #to change size of numbers
++   #   p <- p + geom_hline(yintercept = 0.05, col = "red")
++   print(p)
++   dev.off ()
++ }
+Warning messages:
+1: Removed 430 rows containing non-finite values (stat_boxplot). 
+2: Removed 430 rows containing non-finite values (stat_boxplot). 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> ## 3.4. plot to evaluate heterogeneity and biases for each specific model and function
+> ###################################################### 
+> 
+> # Select results for a specific method:
+> res.method = DLs # significant results from Dersimonian-Laird method
+> metodo <- "DL"   # method to estimate the variability
+> 
+> sig.fun <- rownames(res.method)
+> x.por = 2.5; y.por = 2.5
+> 
+> 
+> if (length(sig.fun) == 0){print ("Not significant results")} else {
++   for (i in 1:length(sig.fun)){
++     #fit the model. It will be used for several plots
++     res <- rma(yi= mat.lor[sig.fun[i],], sei =mat.sd[sig.fun[i],], method = metodo)
++     
++     ## A. FOREST PLOT (detailed infomation of size effect from each study)
++     #   jpeg (filename = paste("reactome_",sig.fun[i],".png",sep =""),
++     #         width = 480 *x.por ,   height = 480*y.por, pointsize = 100, quality = 100) 
++     
++     png (filename = paste("reactome_forest_", sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     par(mar=c(4,4,1,2))
++     forest(res, slab = toupper(substr(colnames(mat.lor),1,4)),
++            xlab="Odds Ratio", cex=0.7,
++            mlab=paste(metodo, "Model for All Studies", sep = " "), col = "red", 
++            main = paste("\n", sig.fun[i], sep=""))    
++     text( 9,-3, "Odds Ratio [IC 95%]", pos=2, cex = 0.7)
++     dev.off()
++     
++     ## B. FUNNEL  PLOT (detailed infomation of size effect from each study)
++     # A funnel plot shows the observed effect sizes or outcomes on the x-axis against 
++     # some measure of precision of the observed effect sizes or outcomes on the y-axis. 
++     # Based on Sterne and Egger (2001)
++     # http://www.metafor-project.org/doku.php/plots:funnel_plot_variations
++     png (filename = paste("REACTOME_funnel_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     ### set up 2x2 array for plotting
++     par(mfrow=c(2,2))
++     ### draw funnel plots
++     funnel(res, main="Standard Error", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="vi", main="Sampling Variance", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="seinv", main="Inverse Standard Error", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     funnel(res, yaxis="vinv", main="Inverse Sampling Variance", back ="darkslategray1",
++            xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     dev.off()
++     
++     #     Some problems with this plot!!
++     #     ## C. FUNNEL PLOT with TRIM and FILL
++     #     # This funnel plot helps to detect asymmetries
++     #     # http://www.metafor-project.org/doku.php/plots:funnel_plot_with_trim_and_fill
++     #     png (filename = paste("go_mf_funnel_tf_",sig.fun[i],".png",sep =""),
++     #          width = 480 * x.por, height = 480 * y.por, res = 200)
++     #     par(mar=c(5,4,1,2))
++     #     ### carry out trim-and-fill analysis
++     #     taf <- trimfill(res)
++     #     ### draw funnel plot with missing studies filled in
++     #     funnel(taf, back ="darkslategray1",xlab = paste("LOR (", sig.fun[i], ")",sep =""))
++     #     dev.off()
++     
++     ## C. RADIAL PLOT 
++     # Radial plots were introduced by Rex Galbraith (1988a, 1988b, 1994) 
++     # and can be useful in the meta-analytic context to examine the data for heterogeneity.
++     # http://www.metafor-project.org/doku.php/plots:radial_plot
++     
++     ### to save as png file
++     png (filename = paste("reactome_radial_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     ### adjust margins so the space is better used
++     par(mar=c(5,4,0,2))
++     ### draw radial plot
++     radial(res,back ="darkslategray1",
++            main = paste("\n", sig.fun[i], " (", res.method[i,"name"], ")",sep=""))
++     dev.off()
++     
++     
++     ## D. INFLUENCE PLOT 
++     # That shows various diagnostic measures
++     
++     ### to save as png file
++ #     jpeg (filename = paste("reactome_influ_",sig.fun[i],".jpeg",sep =""),  
++ #           width = 480 *x.por ,   height = 480*y.por,
++ #           pointsize = 50, quality = 100) 
++     png (filename = paste("REACTOME_influ_",sig.fun[i],".png",sep =""),  
++          width = 480 * x.por, height = 480 * y.por, res = 200)
++     inf <- influence(res)
++     plot(inf, plotfb = T)
++     dev.off()
++   }
++ }
+Error in influence.rma.uni(res) : Stopped because k = 1.
+Calls: influence -> influence.rma.uni
+In addition: There were 50 or more warnings (use warnings() to see the first 50)
+Execution halted

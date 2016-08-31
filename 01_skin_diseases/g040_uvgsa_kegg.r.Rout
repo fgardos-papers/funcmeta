@@ -1,0 +1,644 @@
+
+R version 3.2.4 Revised (2016-03-16 r70336) -- "Very Secure Dishes"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##g040_uvgsa_kegg.r
+> ##2016-03-23 fgarcia@cipf.es, dmontaner@cipf.es
+> ##Meta-analysis of skin diseases 
+> ##Functional annotation: KEGG
+> 
+> date ()
+[1] "Wed Mar 30 13:38:42 2016"
+> Sys.info ()[c("nodename", "user")]
+        nodename             user 
+"fgarcia-laptop"        "fgarcia" 
+> commandArgs ()
+[1] "/usr/lib/R/bin/exec/R" "-f"                    "g040_uvgsa_kegg.r"    
+[4] "--restore"             "--save"                "--no-readline"        
+> rm (list = ls ())
+> R.version.string ##"R version 3.2.1 (2015-06-18)"
+[1] "R version 3.2.4 Revised (2016-03-16 r70336)"
+> library (mdgsa); packageDescription ("mdgsa", fields = "Version") #"1.2.0"
+Loading required package: DBI
+
+
+KEGG.db contains mappings based on older data because the original
+  resource was removed from the the public domain before the most
+  recent update was produced. This package should now be considered
+  deprecated and future versions of Bioconductor may not have it
+  available.  Users who want more current data are encouraged to look
+  at the KEGGREST or reactome.db packages
+
+[1] "1.2.0"
+> library(Biobase); packageDescription ("Biobase", fields = "Version")
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, as.vector, cbind, colnames,
+    do.call, duplicated, eval, evalq, Filter, Find, get, grep, grepl,
+    intersect, is.unsorted, lapply, lengths, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unlist, unsplit
+
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+[1] "2.30.0"
+> 
+> try (source (".job.r")); try (.job)
+
+.job.r has been sourced
+
+$name
+[1] "skin_diseases"
+
+$dir
+$dir$data
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data"
+
+$dir$code
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases"
+
+$dir$scripts
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/scripts"
+
+$dir$docs
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/documents"
+
+$dir$rawdat
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_raw"
+
+$dir$annotation
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_annotation"
+
+$dir$proces
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/data_processed"
+
+$dir$plots
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/results/plots"
+
+$dir$res
+[1] "~/Desktop/phd/02_meta_analysis/skin_diseases/data/results/files"
+
+
+$testmode
+[1] FALSE
+
+$dec
+[1] "."
+
+$idsep
+[1] " /// "
+
+> 
+> 
+> ##ANNOTATION
+> kegg2 <- read.table (file.path (.job$dir$annotation, "hsa_KEGG.txt"), 
++                         header = TRUE, sep = "\t", quote = "", 
++                      na.strings = "", colClasses = "character")
+> dim (kegg2)
+[1] 42843     2
+> kegg2[1:3,]
+  Associated.Gene.Name  KEGG.ID
+1                 PPIH hsa03040
+2               CYFIP1 hsa04810
+3               CYFIP1 hsa03013
+> 
+> #equivalence between Associated Gene Name ID and Ensembl Gene ID
+> equiv <- read.table (file.path (.job$dir$annotation, "mart_export_ensembl_gene84.txt"), 
++                        header = TRUE, sep = "\t", quote = "", 
++                        na.strings = "", colClasses = "character")
+> head(equiv)
+  Ensembl.Gene.ID Associated.Gene.Name
+1 ENSG00000210049                MT-TF
+2 ENSG00000211459              MT-RNR1
+3 ENSG00000210077                MT-TV
+4 ENSG00000210082              MT-RNR2
+5 ENSG00000209082               MT-TL1
+6 ENSG00000198888               MT-ND1
+> dim(equiv)
+[1] 66203     2
+> table(duplicated(equiv))
+
+FALSE 
+66203 
+> 
+> #generating a functional annotation for KEGG and Ensembl Gene ID
+> kegg <- merge(kegg2,equiv, by.x="Associated.Gene.Name",
++               by.y= "Associated.Gene.Name", all = T)
+> dim(kegg)
+[1] 106827      3
+> head(kegg)
+  Associated.Gene.Name KEGG.ID Ensembl.Gene.ID
+1            5_8S_rRNA    <NA> ENSG00000276871
+2            5_8S_rRNA    <NA> ENSG00000278294
+3            5_8S_rRNA    <NA> ENSG00000275877
+4              5S_rRNA    <NA> ENSG00000278457
+5              5S_rRNA    <NA> ENSG00000275999
+6              5S_rRNA    <NA> ENSG00000266615
+> ind1 <- is.na(kegg[, "KEGG.ID"])
+> table(ind1)
+ind1
+FALSE  TRUE 
+50514 56313 
+> kegg <- kegg[!ind1,]
+> dim(kegg)
+[1] 50514     3
+> #checkings
+> ind2 <- duplicated(kegg)
+> table(ind2)
+ind2
+FALSE 
+50514 
+> kegg <- kegg[, c("Ensembl.Gene.ID", "KEGG.ID")]
+> 
+> table (kegg$KEGG.ID == "")
+
+FALSE 
+50514 
+> table (kegg$Ensembl.Gene.ID == "")
+
+FALSE 
+48678 
+> 
+> length (unique (kegg$KEGG.ID))
+[1] 302
+> length (unique (kegg$Ensembl.Gene.ID))
+[1] 9891
+> 
+> na.func <- is.na (kegg$KEGG.ID)
+> na.gene <- is.na (kegg$Ensembl.Gene.ID)
+> table (na.func, na.gene) ## some missing
+       na.gene
+na.func FALSE  TRUE
+  FALSE 48678  1836
+> touse <- !na.func & !na.gene
+> table (touse)
+touse
+FALSE  TRUE 
+ 1836 48678 
+> 
+> kegg <- kegg[touse,]
+> dim (kegg)
+[1] 48678     2
+> length (unique (kegg$KEGG.ID))
+[1] 302
+> length (unique (kegg$Ensembl.Gene.ID))
+[1] 9890
+> 
+> anot.mat <- kegg
+> 
+> # ## keep just genes in the dataset
+> # touse <- kegg[,"Associated.Gene.Name"] %in% genes  ##most of them are present
+> # table (touse)
+> # 
+> # kegg <- kegg[touse,]
+> # kegg[1:3,]
+> # length (unique (kegg[,"Associated.Gene.Name"]))
+> # length (unique (kegg[,"KEGG.ID"]))
+> # dim(kegg)
+> 
+> 
+> 
+> ##DATOS
+> setwd(file.path(.job$dir$proces, "difexp"))
+> ficheros <- dir(pattern= "GSE")
+> ficheros
+ [1] "GSE11903_con_les_pso.RData"     "GSE12511_con_les_der.RData"    
+ [3] "GSE13355_con_les_pso.RData"     "GSE13355_con_nonles_pso.RData" 
+ [5] "GSE14905_con_les_pso.RData"     "GSE14905_con_nonles_pso.RData" 
+ [7] "GSE16161_con_les_der.RData"     "GSE16161_con_les_pso.RData"    
+ [9] "GSE18686_con_les_pso.RData"     "GSE26866_con_les_pso.RData"    
+[11] "GSE26952_con_les_der.RData"     "GSE26952_con_les_pso.RData"    
+[13] "GSE2737_con_les_pso.RData"      "GSE2737_con_nonles_pso.RData"  
+[15] "GSE27887_con_les_der.RData"     "GSE30768_con_les_pso.RData"    
+[17] "GSE30999_con_les_pso.RData"     "GSE31835_con_les_pso.RData"    
+[19] "GSE31835_con_nonles_pso.RData"  "GSE32407_con_nonles_pso.RData" 
+[21] "GSE32924_con_les_der.RData"     "GSE32924_con_nonles_der.RData" 
+[23] "GSE34248_con_les_pso.RData"     "GSE36842_con_les1_der.RData"   
+[25] "GSE36842_con_les2_der.RData"    "GSE36842_con_nonles_der.RData" 
+[27] "GSE40263_con_les_pso.RData"     "GSE41662_con_les_pso.RData"    
+[29] "GSE41663_con_les_pso.RData"     "GSE52471_con_les_pso.RData"    
+[31] "GSE53431_con_les_pso.RData"     "GSE5667.1_con_les_der.RData"   
+[33] "GSE5667.1_con_nonles_der.RData" "GSE5667.2_con_les_der.RData"   
+[35] "GSE5667.2_con_nonles_der.RData" "GSE6012_con_les_der.RData"     
+[37] "GSE6281_con_les0_der.RData"     "GSE6281_con_les1_der.RData"    
+[39] "GSE6281_con_les2_der.RData"     "GSE6281_con_les3_der.RData"    
+[41] "GSE6710_con_les_pso.RData"     
+> 
+> for (fi in ficheros){
++   setwd(file.path(.job$dir$proces, "difexp"))
++   cat ("\n ============================= \n")
++   print (fi)
++   load (fi)
++   
++   table (rownames (fit$p.value) == rownames (fit$t))
++   
++   ##RANKING INDEX
++   rindex0 <- pval2index (pval=fit$p.value[,2], sign= fit$t[,2])
++   #transforma p.value y su valor asociado de t en un ranking
++   summary (rindex0)
++   rindex0[1:3]
++   length (rindex0)
++   
++   table (rownames (fit$p.value) == names (rindex0))
++   
++   ##TRANSFORM
++   rindex <- indexTransform (index = rindex0, method = "normalize")
++   #transforma el ranking para que su distribucion sea adecuada como variable independiente de un modelo de regresion logistica
++   
++   touse <- anot.mat[,1] %in% names (rindex)
++   table (touse)
++   anot.mat <- anot.mat[touse,]
++   
++   anot <- annotMat2list (anot.mat)
++   #convierte una matriz de anotacion con dos columnas (la primera con los id de los genes y la segunda
++   #con los id de la anotacion) en una lista de anotacion. Cada GO con los id_ensembl asociados
++   head (anot)
++   
++   #   ##propagate annotation 
++   #   anot <- propagateGO (anot, verbose = TRUE)
++   #   #los genes anotados bajo un GO heredan la anotacion de todos los ancestros
++   #   
++   #   ##filter annotation
++   #   anot <- annotFilter (annot = anot, index = rindex, minBlockSize = 10, maxBlockSize = 500)
++   #   #filtra los GO estableciendo un minimo y maximo de id_ensembl asociados a cada GO
++   #   length (anot)
++   #   
++   ## GSA
++   res <- uvGsa (index = rindex, annot = anot, fulltable = TRUE)
++   #realiza un analisis con un modelo de regresion logistica
++   #Warning: The analysis did not converge for some blocks. You may re-run uvGsa using 'fulltable = TRUE' to find them.
++   res[1:3,]
++   save  (res, file = file.path (.job$dir$proces, "gsa", "kegg", fi))
++ }
+
+ ============================= 
+[1] "GSE11903_con_les_pso.RData"
+Loading required package: limma
+
+Attaching package: ‘limma’
+
+The following object is masked from ‘package:BiocGenerics’:
+
+    plotMA
+
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 43.428   0.048  47.056 
+
+ ============================= 
+[1] "GSE12511_con_les_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 40.833   0.002  42.673 
+
+ ============================= 
+[1] "GSE13355_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+117.189   0.113 146.017 
+
+ ============================= 
+[1] "GSE13355_con_nonles_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+113.011   0.066 115.976 
+
+ ============================= 
+[1] "GSE14905_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+116.040   0.025 119.991 
+
+ ============================= 
+[1] "GSE14905_con_nonles_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+113.223   0.029 120.815 
+
+ ============================= 
+[1] "GSE16161_con_les_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+111.087   0.123 123.162 
+
+ ============================= 
+[1] "GSE16161_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 42.592   0.039  48.737 
+
+ ============================= 
+[1] "GSE18686_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+111.164   0.123 126.521 
+
+ ============================= 
+[1] "GSE26866_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 44.314   0.043  51.103 
+
+ ============================= 
+[1] "GSE26952_con_les_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 67.598   0.043  72.903 
+
+ ============================= 
+[1] "GSE26952_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 66.794   0.016  68.759 
+
+ ============================= 
+[1] "GSE2737_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 25.142   0.012  27.046 
+
+ ============================= 
+[1] "GSE2737_con_nonles_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 24.904   0.016  26.894 
+
+ ============================= 
+[1] "GSE27887_con_les_der.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+116.902   0.124 122.599 
+
+ ============================= 
+[1] "GSE30768_con_les_pso.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 44.807   0.126  47.354 
+
+ ============================= 
+[1] "GSE30999_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+113.403   0.021 120.980 
+
+ ============================= 
+[1] "GSE31835_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 55.187   0.047  59.999 
+
+ ============================= 
+[1] "GSE31835_con_nonles_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 54.799   0.004  58.486 
+
+ ============================= 
+[1] "GSE32407_con_nonles_pso.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 42.915   0.008  47.798 
+
+ ============================= 
+[1] "GSE32924_con_les_der.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+114.372   0.163 122.276 
+
+ ============================= 
+[1] "GSE32924_con_nonles_der.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+113.954   0.141 130.123 
+
+ ============================= 
+[1] "GSE34248_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+117.268   0.021 131.861 
+
+ ============================= 
+[1] "GSE36842_con_les1_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+115.701   0.120 130.622 
+
+ ============================= 
+[1] "GSE36842_con_les2_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+113.054   0.028 119.207 
+
+ ============================= 
+[1] "GSE36842_con_nonles_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+112.718   0.064 119.509 
+
+ ============================= 
+[1] "GSE40263_con_les_pso.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+127.867   0.012 140.209 
+
+ ============================= 
+[1] "GSE41662_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+117.277   0.009 128.137 
+
+ ============================= 
+[1] "GSE41663_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+119.145   0.016 130.018 
+
+ ============================= 
+[1] "GSE52471_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 34.315   0.005  37.539 
+
+ ============================= 
+[1] "GSE53431_con_les_pso.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 91.569   0.005 100.286 
+
+ ============================= 
+[1] "GSE5667.1_con_les_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 46.466   0.007  51.069 
+
+ ============================= 
+[1] "GSE5667.1_con_nonles_der.RData"
+Analyzed blocks:
+100, 200, 300, time in seconds:
+   user  system elapsed 
+ 47.340   0.009  51.852 
+
+ ============================= 
+[1] "GSE5667.2_con_les_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+ 36.364   0.000  39.791 
+
+ ============================= 
+[1] "GSE5667.2_con_nonles_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+ 34.500   0.008  37.725 
+
+ ============================= 
+[1] "GSE6012_con_les_der.RData"
+Some sign statistics are zero; zero values will be returned.
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+ 48.714   0.008  53.280 
+
+ ============================= 
+[1] "GSE6281_con_les0_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+121.648   0.020 133.106 
+
+ ============================= 
+[1] "GSE6281_con_les1_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+125.726   0.025 137.589 
+
+ ============================= 
+[1] "GSE6281_con_les2_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+125.602   0.075 136.547 
+
+ ============================= 
+[1] "GSE6281_con_les3_der.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+127.211   0.033 139.727 
+
+ ============================= 
+[1] "GSE6710_con_les_pso.RData"
+Analyzed blocks:
+100, 200, time in seconds:
+   user  system elapsed 
+ 49.579   0.071  53.608 
+> 
+> 
+> ###EXIT
+> warnings ()
+NULL
+> sessionInfo ()
+R version 3.2.4 Revised (2016-03-16 r70336)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 14.04.4 LTS
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=es_ES.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=es_ES.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=es_ES.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=es_ES.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] parallel  stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+[1] limma_3.26.8        Biobase_2.30.0      BiocGenerics_0.16.1
+[4] mdgsa_1.2.0         RSQLite_1.0.0       DBI_0.3.1          
+
+loaded via a namespace (and not attached):
+ [1] Matrix_1.2-4         IRanges_2.4.7        AnnotationDbi_1.32.3
+ [4] KEGG.db_3.2.2        grid_3.2.4           S4Vectors_0.8.11    
+ [7] stats4_3.2.4         cluster_2.0.3        GO.db_3.2.2         
+[10] lattice_0.20-33     
+> q ("no")
+> proc.time()
+    user   system  elapsed 
+3428.389    2.250 3744.664 

@@ -1,0 +1,884 @@
+
+R version 3.2.4 Revised (2016-03-16 r70336) -- "Very Secure Dishes"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##g040_uvgsa_paired.r
+> ##2016-03-23 fgarcia@cipf.es, dmontaner@cipf.es
+> ##Analysis of the miRNA data from The Cancer Genome Atlas
+> ##This script performs the GSA analysis of the transferred miRNA
+> 
+> date ()
+[1] "Thu Mar 24 11:37:59 2016"
+> Sys.info ()[c("nodename", "user")]
+        nodename             user 
+"fgarcia-laptop"        "fgarcia" 
+> commandArgs ()
+[1] "/usr/lib/R/bin/exec/R"  "-f"                     "g040_uvgsa_paired_go.r"
+[4] "--restore"              "--save"                 "--no-readline"         
+> rm (list = ls ())
+> R.version.string ##"R version 3.2.1 (2015-06-18)"
+[1] "R version 3.2.4 Revised (2016-03-16 r70336)"
+> library (mdgsa); packageDescription ("mdgsa", fields = "Version") #"1.2.0"
+Loading required package: DBI
+
+
+KEGG.db contains mappings based on older data because the original
+  resource was removed from the the public domain before the most
+  recent update was produced. This package should now be considered
+  deprecated and future versions of Bioconductor may not have it
+  available.  Users who want more current data are encouraged to look
+  at the KEGGREST or reactome.db packages
+
+[1] "1.2.0"
+> #library (mirbaseID); packageDescription ("mirbaseID", fields = "Version") #"0.0.2"
+> #help (package = mdgsa)
+> #help (package = mirbaseID)
+> 
+> try (source (".job.r")); try (.job)
+
+.job.r has been sourced
+
+$name
+[1] "tcga"
+
+$dir
+$dir$data
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data"
+
+$dir$code
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga"
+
+$dir$scripts
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/scripts"
+
+$dir$docs
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/documents"
+
+$dir$rawdat
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_raw"
+
+$dir$annotation
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_annotation"
+
+$dir$proces
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/data_processed"
+
+$dir$plots
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/results/plots"
+
+$dir$res
+[1] "~/Desktop/phd/02_meta_analysis/meta_analysis/tcga/data/results/files"
+
+
+$testmode
+[1] FALSE
+
+$dec
+[1] "."
+
+$idsep
+[1] " /// "
+
+> 
+> ## ANNOTATION
+> load (file.path (.job$dir$proces, "go", "annot_for_paired_data.RData"))
+> ls ()
+[1] "annot"
+> 
+> ontologias <- names (annot)
+> ontologias
+[1] "bp" "cc" "mf"
+> 
+> ## INDEX
+> load (file.path (.job$dir$proces, "rindex_paired.RData"))
+> ls ()
+[1] "annot"      "ontologias" "rindex"    
+> 
+> tags <- names (rindex)
+> TAGS <- toupper (tags)
+> names (TAGS) <- tags
+> tags
+ [1] "blca" "brca" "cesc" "esca" "hnsc" "kich" "kirc" "kirp" "lihc" "luad"
+[11] "lusc" "paad" "pcpg" "prad" "stad" "thca" "ucec"
+> TAGS
+  blca   brca   cesc   esca   hnsc   kich   kirc   kirp   lihc   luad   lusc 
+"BLCA" "BRCA" "CESC" "ESCA" "HNSC" "KICH" "KIRC" "KIRP" "LIHC" "LUAD" "LUSC" 
+  paad   pcpg   prad   stad   thca   ucec 
+"PAAD" "PCPG" "PRAD" "STAD" "THCA" "UCEC" 
+> 
+> ################################################################################
+> 
+> length (tags)
+[1] 17
+> 
+> ## tags <- tags[1:3]    ## 1
+> ## tags <- tags[4:6]    ## 2
+> ## tags <- tags[7:9]    ## 3
+> ## tags <- tags[10:12]  ## 4
+> ## tags <- tags[13:15]  ## 5
+> ## tags <- tags[16:17]  ## 6
+> 
+> ################################################################################
+> 
+> ## GSA
+> setwd (file.path (.job$dir$proces, "go",  "res_uvgsa_paired"))
+> 
+> for (tag in tags) {
++     for (onto in ontologias) {
++         cat ("\n=============== ", TAGS[tag], ":", onto, " ===============\n")
++         
++         anotacion <- annotFilter (annot[[onto]], index = rindex[[tag]], minBlockSize = 10, maxBlockSize = 300)
++ 
++         if (.job$testmode) anotacion <- anotacion[1:3]
++         
++         res <- try (uvGsa (rindex[[tag]], anotacion, fulltable = TRUE))
++         
++         fichero <- paste (tag, "_", onto, ".RData", sep = "")
++         save (list = "res", file = fichero)
++     }
++ }
+
+===============  BLCA : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+375.667   0.212 567.035 
+
+===============  BLCA : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 40.800   0.028  42.413 
+
+===============  BLCA : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 65.034   0.048  66.305 
+
+===============  BRCA : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+352.067   0.378 358.354 
+
+===============  BRCA : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.566   0.048  40.239 
+
+===============  BRCA : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 63.834   0.048  64.977 
+
+===============  CESC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+356.084   0.128 361.700 
+
+===============  CESC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.347   0.036  39.982 
+
+===============  CESC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 63.988   0.019  65.062 
+
+===============  ESCA : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+355.305   0.145 368.333 
+
+===============  ESCA : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 40.045   0.004  41.972 
+
+===============  ESCA : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 64.639   0.020  67.728 
+
+===============  HNSC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+358.712   0.105 376.112 
+
+===============  HNSC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.437   0.012  41.321 
+
+===============  HNSC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 64.436   0.028  67.446 
+
+===============  KICH : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+357.417   0.327 364.477 
+
+===============  KICH : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.872   0.012  40.452 
+
+===============  KICH : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 64.358   0.072  65.621 
+
+===============  KIRC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+354.780   2.102 373.638 
+
+===============  KIRC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.227   0.266  41.463 
+
+===============  KIRC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 63.816   0.336  67.227 
+
+===============  KIRP : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+357.281   2.529 377.441 
+
+===============  KIRP : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 39.427   0.443  41.835 
+
+===============  KIRP : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 63.573   0.497  67.159 
+
+===============  LIHC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+332.724   1.023 340.869 
+
+===============  LIHC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.029   0.001  35.066 
+
+===============  LIHC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.350   0.017  57.427 
+
+===============  LUAD : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+319.685   0.080 320.284 
+
+===============  LUAD : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.912   0.012  35.991 
+
+===============  LUAD : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.741   0.049  57.899 
+
+===============  LUSC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+321.071   0.314 322.031 
+
+===============  LUSC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.679   0.032  35.783 
+
+===============  LUSC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.498   0.092  57.708 
+
+===============  PAAD : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+319.642   0.111 320.389 
+
+===============  PAAD : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.321   0.028  35.403 
+
+===============  PAAD : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.574   0.009  57.663 
+
+===============  PCPG : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+318.566   0.185 319.322 
+
+===============  PCPG : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.647   0.005  35.713 
+
+===============  PCPG : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.340   0.008  57.450 
+
+===============  PRAD : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+318.045   0.175 318.782 
+
+===============  PRAD : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.061   0.008  35.132 
+
+===============  PRAD : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+  57.26    0.00   57.36 
+
+===============  STAD : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+318.119   0.038 318.732 
+
+===============  STAD : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.535   0.000  35.596 
+
+===============  STAD : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.188   0.009  57.297 
+
+===============  THCA : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+317.412   0.122 318.088 
+
+===============  THCA : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.136   0.004  35.203 
+
+===============  THCA : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 57.426   0.004  57.531 
+
+===============  UCEC : bp  ===============
+83.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   7346 small blocks removed.
+   490 big blocks removed.
+   4214 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
+
+1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 
+
+2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 
+
+3100, 3200, 3300, 3400, 3500, 3600, 3700, 3800, 3900, 4000, 
+
+4100, 4200, time in seconds:
+   user  system elapsed 
+318.462   0.166 319.187 
+
+===============  UCEC : cc  ===============
+90.19% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   819 small blocks removed.
+   89 big blocks removed.
+   471 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, time in seconds:
+   user  system elapsed 
+ 35.408   0.000  35.472 
+
+===============  UCEC : mf  ===============
+87.7% of the genes in the index are annotated in the list.
+Filtering annotation by size:
+   2598 small blocks removed.
+   86 big blocks removed.
+   749 blocks remain in the annotation.
+Analyzed blocks:
+100, 200, 300, 400, 500, 600, 700, time in seconds:
+   user  system elapsed 
+ 56.980   0.008  57.090 
+> 
+> ###EXIT
+> warnings ()
+NULL
+> sessionInfo ()
+R version 3.2.4 Revised (2016-03-16 r70336)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 14.04.4 LTS
+
+locale:
+ [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=es_ES.UTF-8        LC_COLLATE=en_US.UTF-8    
+ [5] LC_MONETARY=es_ES.UTF-8    LC_MESSAGES=en_US.UTF-8   
+ [7] LC_PAPER=es_ES.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=es_ES.UTF-8 LC_IDENTIFICATION=C       
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] mdgsa_1.2.0   RSQLite_1.0.0 DBI_0.3.1    
+
+loaded via a namespace (and not attached):
+ [1] Matrix_1.2-4         IRanges_2.4.7        parallel_3.2.4      
+ [4] Biobase_2.30.0       AnnotationDbi_1.32.3 KEGG.db_3.2.2       
+ [7] grid_3.2.4           S4Vectors_0.8.11     BiocGenerics_0.16.1 
+[10] stats4_3.2.4         cluster_2.0.3        GO.db_3.2.2         
+[13] lattice_0.20-33     
+> q ("no")
+> proc.time()
+    user   system  elapsed 
+7453.782   10.800 7785.788 
