@@ -1,5 +1,5 @@
 # funcmeta
-**Functional meta-analysis for genomic studies**. 
+##Functional meta-analysis for genomic studies## 
 
 Functional enrichment analysis of genomic data provides results that are part of the assessed experiment. However, the small sample size of most of the experiments and its marking to a specific scenario, represent limiting factors when evaluating such studies. Therefore, to improve the integration of various experiments in the functional context and provide clarity in the
 interpretation,  we present a meta-analysis method to detect functional results of global interest, reducing the effect of
